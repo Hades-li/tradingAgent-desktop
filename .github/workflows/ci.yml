@@ -59,3 +59,27 @@ jobs:
         # The repo is fully clean under the strict select, so we lint everything
         # (results/ and worklog/ are excluded via pyproject extend-exclude).
         run: ruff check .
+
+  desktop:
+    name: desktop (typecheck + vitest)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: desktop/package-lock.json
+      - name: Install
+        working-directory: desktop
+        # Electron's binary is not needed to typecheck or run vitest, and
+        # downloading it doubles the job time.
+        env:
+          ELECTRON_SKIP_BINARY_DOWNLOAD: "1"
+        run: npm ci
+      - name: Typecheck
+        working-directory: desktop
+        run: npm run typecheck
+      - name: Unit tests
+        working-directory: desktop
+        run: npm run test
