@@ -138,6 +138,21 @@ def normalize_symbol(raw: str) -> str:
     return canonical
 
 
+# Canonical-symbol suffixes that mark a crypto pair. Classification runs on the
+# normalized symbol so BTCUSD and BTC-USDT both read as crypto (#981/#982),
+# matching what the data path will actually fetch.
+CRYPTO_SUFFIXES = ("-USD", "-USDT", "-USDC", "-BTC", "-ETH")
+
+
+def detect_asset_type(raw: str) -> str:
+    """Classify a ticker as ``"crypto"`` or ``"stock"``.
+
+    Shared by the CLI's enum-returning wrapper and the desktop sidecar, so both
+    front-ends route a symbol to the same pipeline.
+    """
+    return "crypto" if normalize_symbol(raw).endswith(CRYPTO_SUFFIXES) else "stock"
+
+
 def is_yahoo_safe(symbol: str) -> bool:
     """True when ``symbol`` only contains characters Yahoo symbols use."""
     return bool(symbol) and _YAHOO_SAFE.fullmatch(symbol) is not None
