@@ -1,0 +1,120 @@
+@import 'tailwindcss';
+
+/* Tailwind 4 is CSS-first: tokens live here, there is no tailwind.config.js.
+   Values mirror docs/ui-prototype.html so the built app matches the mock. */
+@theme {
+  --color-app: light-dark(#f4f5f7, #15171c);
+  --color-panel: light-dark(#ffffff, #1d2027);
+  --color-panel2: light-dark(#fafbfc, #21252d);
+  --color-line: light-dark(#e2e5ea, #303540);
+  --color-line2: light-dark(#eceef2, #282d36);
+  --color-ink: light-dark(#181b21, #e7eaf0);
+  --color-muted: light-dark(#6a7280, #98a1b0);
+  --color-accent: light-dark(#2563eb, #6ba5fb);
+  --color-ok: light-dark(#15803d, #4ade80);
+  --color-warn: light-dark(#b45309, #fbbf24);
+  --color-bad: light-dark(#b91c1c, #f87171);
+
+  --font-sans: -apple-system, system-ui, 'Segoe UI', 'PingFang SC', sans-serif;
+  --font-mono: ui-monospace, SFMono-Regular, 'SF Mono', Menlo, Consolas, monospace;
+}
+
+:root {
+  color-scheme: light dark;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+  margin: 0;
+}
+
+body {
+  background: var(--color-app);
+  color: var(--color-ink);
+  font-family: var(--font-sans);
+  font-size: 13px;
+  line-height: 1.55;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Native-feeling window drag region for the frameless macOS title bar. */
+.drag-region {
+  -webkit-app-region: drag;
+}
+.no-drag {
+  -webkit-app-region: no-drag;
+}
+
+@utility field {
+  width: 100%;
+  border-radius: 7px;
+  border: 1px solid var(--color-line);
+  background: var(--color-panel);
+  color: var(--color-ink);
+  padding: 6px 9px;
+  font-size: 13px;
+  outline: none;
+}
+.field:focus {
+  border-color: var(--color-accent);
+}
+
+@utility card {
+  border-radius: 10px;
+  border: 1px solid var(--color-line);
+  background: var(--color-panel);
+  padding: 14px;
+}
+
+/* Report markdown. Content arrives as Markdown from the agents, so this is the
+   only place where typography for generated prose is defined. */
+.md h1,
+.md h2,
+.md h3,
+.md h4 {
+  font-weight: 650;
+  margin: 14px 0 6px;
+  line-height: 1.35;
+}
+.md h1 { font-size: 17px; }
+.md h2 { font-size: 15px; }
+.md h3 { font-size: 14px; }
+.md h4 { font-size: 13px; }
+.md p { margin: 7px 0; }
+.md ul,
+.md ol { margin: 7px 0 7px 18px; }
+.md li { margin: 3px 0; }
+.md code {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  background: var(--color-panel2);
+  border: 1px solid var(--color-line2);
+  border-radius: 4px;
+  padding: 0 4px;
+}
+.md pre {
+  overflow-x: auto;
+  background: var(--color-panel2);
+  border: 1px solid var(--color-line2);
+  border-radius: 8px;
+  padding: 10px;
+}
+.md table {
+  border-collapse: collapse;
+  margin: 8px 0;
+  width: 100%;
+}
+.md th,
+.md td {
+  border: 1px solid var(--color-line);
+  padding: 4px 8px;
+  text-align: left;
+}
+.md blockquote {
+  border-left: 3px solid var(--color-line);
+  color: var(--color-muted);
+  margin: 8px 0;
+  padding-left: 10px;
+}

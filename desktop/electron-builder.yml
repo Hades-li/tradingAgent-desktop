@@ -1,0 +1,28 @@
+appId: com.tauricresearch.tradingagents
+productName: TradingAgents
+directories:
+  output: release
+  buildResources: resources
+files:
+  - out/**
+  - package.json
+# The PyInstaller --onedir bundle is copied here by scripts/build-sidecar.sh
+# BEFORE electron-builder runs, so the app is signed as one unit. Signing the
+# sidecar afterwards invalidates the outer signature and arm64 refuses to launch.
+extraResources:
+  - from: build/sidecar
+    to: sidecar
+    filter: ["**/*"]
+mac:
+  category: public.app-category.finance
+  target:
+    - target: dmg
+      arch: [arm64]
+  # Unsigned for now: PyInstaller and electron-builder both ad-hoc sign
+  # (codesign -s -), which is what arm64 requires to execute at all.
+  identity: null
+win:
+  target: nsis
+linux:
+  target: AppImage
+  category: Office
