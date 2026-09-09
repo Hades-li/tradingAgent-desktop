@@ -42,14 +42,16 @@ from cli.utils import (
     select_shallow_thinking_agent,
 )
 from tradingagents.default_config import DEFAULT_CONFIG
-from tradingagents.graph.analyst_execution import (
-    AnalystWallTimeTracker,
-    build_analyst_execution_plan,
-    get_initial_analyst_node,
-    sync_analyst_tracker_from_chunk,
-)
-from tradingagents.graph.trading_graph import TradingAgentsGraph
 from tradingagents.reporting import write_report_tree
+from tradingagents.session import (
+    ANALYST_MAPPING,
+    FIXED_AGENTS,
+    REPORT_SECTIONS,
+    SECTION_TITLES,
+    TEAM_LAYOUT,
+    AnalysisSession,
+    normalize_analysts,
+)
 
 console = Console()
 
@@ -74,34 +76,11 @@ app = typer.Typer(
 
 # Create a deque to store recent messages with a maximum length
 class MessageBuffer:
-    # Fixed teams that always run (not user-selectable)
-    FIXED_AGENTS = {
-        "Research Team": ["Bull Researcher", "Bear Researcher", "Research Manager"],
-        "Trading Team": ["Trader"],
-        "Risk Management": ["Aggressive Analyst", "Neutral Analyst", "Conservative Analyst"],
-        "Portfolio Management": ["Portfolio Manager"],
-    }
-
-    # Analyst name mapping
-    ANALYST_MAPPING = {
-        "market": "Market Analyst",
-        "social": "Sentiment Analyst",
-        "news": "News Analyst",
-        "fundamentals": "Fundamentals Analyst",
-    }
-
-    # Report section mapping: section -> (analyst_key for filtering, finalizing_agent)
-    # analyst_key: which analyst selection controls this section (None = always included)
-    # finalizing_agent: which agent must be "completed" for this report to count as done
-    REPORT_SECTIONS = {
-        "market_report": ("market", "Market Analyst"),
-        "sentiment_report": ("social", "Sentiment Analyst"),
-        "news_report": ("news", "News Analyst"),
-        "fundamentals_report": ("fundamentals", "Fundamentals Analyst"),
-        "investment_plan": (None, "Research Manager"),
-        "trader_investment_plan": (None, "Trader"),
-        "final_trade_decision": (None, "Portfolio Manager"),
-    }
+    # Team layout, analyst naming and report-section wiring live in
+    # tradingagents.session so the desktop client and the CLI cannot drift.
+    FIXED_AGENTS = FIXED_AGENTS
+    ANALYST_MAPPING = ANALYST_MAPPING
+    REPORT_SECTIONS = REPORT_SECTIONS
 
     def __init__(self, max_length=100):
         self.messages = deque(maxlen=max_length)
@@ -201,17 +180,8 @@ class MessageBuffer:
 
         if latest_section and latest_content:
             # Format the current section for display
-            section_titles = {
-                "market_report": "Market Analysis",
-                "sentiment_report": "Social Sentiment",
-                "news_report": "News Analysis",
-                "fundamentals_report": "Fundamentals Analysis",
-                "investment_plan": "Research Team Decision",
-                "trader_investment_plan": "Trading Team Plan",
-                "final_trade_decision": "Portfolio Management Decision",
-            }
             self.current_report = (
-                f"### {section_titles[latest_section]}\n{latest_content}"
+                f"### {SECTION_TITLES[latest_section]}\n{latest_content}"
             )
 
         # Update the final complete report
@@ -313,22 +283,9 @@ def update_display(layout, spinner_text=None, stats_handler=None, start_time=Non
     progress_table.add_column("Status", style="yellow", justify="center", width=20)
 
     # Group agents by team - filter to only include agents in agent_status
-    all_teams = {
-        "Analyst Team": [
-            "Market Analyst",
-            "Sentiment Analyst",
-            "News Analyst",
-            "Fundamentals Analyst",
-        ],
-        "Research Team": ["Bull Researcher", "Bear Researcher", "Research Manager"],
-        "Trading Team": ["Trader"],
-        "Risk Management": ["Aggressive Analyst", "Neutral Analyst", "Conservative Analyst"],
-        "Portfolio Management": ["Portfolio Manager"],
-    }
-
     # Filter teams to only include agents that are in agent_status
     teams = {}
-    for team, agents in all_teams.items():
+    for team, agents in TEAM_LAYOUT.items():
         active_agents = [a for a in agents if a in message_buffer.agent_status]
         if active_agents:
             teams[team] = active_agents
@@ -826,150 +783,28 @@ def display_complete_report(final_state):
             console.print(Panel(Markdown(risk["judge_decision"]), title="Portfolio Manager", border_style="blue", padding=(1, 2)))
 
 
-def update_research_team_status(status):
-    """Update status for research team members (not Trader)."""
-    research_team = ["Bull Researcher", "Bear Researcher", "Research Manager"]
-    for agent in research_team:
-        message_buffer.update_agent_status(agent, status)
-
-
-# Ordered list of analysts for status transitions
-ANALYST_ORDER = ["market", "social", "news", "fundamentals"]
-ANALYST_AGENT_NAMES = {
-    "market": "Market Analyst",
-    "social": "Sentiment Analyst",
-    "news": "News Analyst",
-    "fundamentals": "Fundamentals Analyst",
-}
-ANALYST_REPORT_MAP = {
-    "market": "market_report",
-    "social": "sentiment_report",
-    "news": "news_report",
-    "fundamentals": "fundamentals_report",
-}
-
-
-def update_analyst_statuses(message_buffer, chunk, wall_time_tracker=None):
-    """Update analyst statuses based on accumulated report state.
-
-    Logic:
-    - Store new report content from the current chunk if present
-    - Check accumulated report_sections (not just current chunk) for status
-    - Analysts with reports = completed
-    - First analyst without report = in_progress
-    - Remaining analysts without reports = pending
-    - When all analysts done, set Bull Researcher to in_progress
-    """
-    selected = message_buffer.selected_analysts
-    found_active = False
-
-    if wall_time_tracker is not None:
-        sync_analyst_tracker_from_chunk(wall_time_tracker, chunk)
-
-    for analyst_key in ANALYST_ORDER:
-        if analyst_key not in selected:
-            continue
-
-        agent_name = ANALYST_AGENT_NAMES[analyst_key]
-        report_key = ANALYST_REPORT_MAP[analyst_key]
-
-        # Capture new report content from current chunk
-        if chunk.get(report_key):
-            message_buffer.update_report_section(report_key, chunk[report_key])
-
-        # Determine status from accumulated sections, not just current chunk
-        has_report = bool(message_buffer.report_sections.get(report_key))
-
-        if has_report:
-            message_buffer.update_agent_status(agent_name, "completed")
-        elif not found_active:
-            message_buffer.update_agent_status(agent_name, "in_progress")
-            found_active = True
-        else:
-            message_buffer.update_agent_status(agent_name, "pending")
-
-    # When all analysts complete, transition research team to in_progress
-    if (
-        not found_active
-        and selected
-        and message_buffer.agent_status.get("Bull Researcher") == "pending"
-    ):
-        message_buffer.update_agent_status("Bull Researcher", "in_progress")
-
-def extract_content_string(content):
-    """Extract string content from various message formats.
-    Returns None if no meaningful text content is found.
-    """
-    import ast
-
-    def is_empty(val):
-        """Check if value is empty using Python's truthiness."""
-        if val is None or val == '':
-            return True
-        if isinstance(val, str):
-            s = val.strip()
-            if not s:
-                return True
-            try:
-                return not bool(ast.literal_eval(s))
-            except (ValueError, SyntaxError):
-                return False  # Can't parse = real text
-        return not bool(val)
-
-    if is_empty(content):
-        return None
-
-    if isinstance(content, str):
-        return content.strip()
-
-    if isinstance(content, dict):
-        text = content.get('text', '')
-        return text.strip() if not is_empty(text) else None
-
-    if isinstance(content, list):
-        text_parts = [
-            item.get('text', '').strip() if isinstance(item, dict) and item.get('type') == 'text'
-            else (item.strip() if isinstance(item, str) else '')
-            for item in content
-        ]
-        result = ' '.join(t for t in text_parts if t and not is_empty(t))
-        return result if result else None
-
-    return str(content).strip() if not is_empty(content) else None
-
-
-def classify_message_type(message) -> tuple[str, str | None]:
-    """Classify LangChain message into display type and extract content.
-
-    Returns:
-        (type, content) - type is one of: User, Agent, Data, Control
-                        - content is extracted string or None
-    """
-    from langchain_core.messages import AIMessage, HumanMessage, ToolMessage
-
-    content = extract_content_string(getattr(message, 'content', None))
-
-    if isinstance(message, HumanMessage):
-        if content and content.strip() == "Continue":
-            return ("Control", content)
-        return ("User", content)
-
-    if isinstance(message, ToolMessage):
-        return ("Data", content)
-
-    if isinstance(message, AIMessage):
-        return ("Agent", content)
-
-    # Fallback for unknown types
-    return ("System", content)
-
-
 def format_tool_args(args, max_length=80) -> str:
     """Format tool arguments for terminal display."""
     result = str(args)
     if len(result) > max_length:
         return result[:max_length - 3] + "..."
     return result
+
+def apply_event(buffer: MessageBuffer, event) -> None:
+    """Render one :class:`tradingagents.session.RunEvent` into the buffer.
+
+    ``run_started`` / ``run_finished`` carry no terminal-visible state, so the
+    CLI ignores them; the desktop client uses them for its run lifecycle.
+    """
+    if event.type == "message":
+        buffer.add_message(event.data["role"], event.data["content"])
+    elif event.type == "tool_call":
+        buffer.add_tool_call(event.data["name"], event.data["args"])
+    elif event.type == "agent_status":
+        buffer.update_agent_status(event.data["agent"], event.data["status"])
+    elif event.type == "report_section":
+        buffer.update_report_section(event.data["section"], event.data["content"])
+
 
 def _build_run_config(selections: dict, checkpoint: bool | None) -> dict:
     """Assemble the run config from interactive selections, honoring env precedence.
@@ -1011,17 +846,21 @@ def run_analysis(checkpoint: bool | None = None):
     stats_handler = StatsCallbackHandler()
 
     # Normalize analyst selection to predefined order (selection is a 'set', order is fixed)
-    selected_set = {analyst.value for analyst in selections["analysts"]}
-    selected_analyst_keys = [a for a in ANALYST_ORDER if a in selected_set]
-    analyst_execution_plan = build_analyst_execution_plan(selected_analyst_keys)
-    analyst_wall_time_tracker = AnalystWallTimeTracker(analyst_execution_plan)
+    selected_analyst_keys = normalize_analysts(
+        analyst.value for analyst in selections["analysts"]
+    )
 
-    # Initialize the graph with callbacks bound to LLMs
-    graph = TradingAgentsGraph(
+    # The session owns the graph, the stream loop and the chunk -> event
+    # translation shared with the desktop client; the CLI only renders the
+    # events it emits.
+    session = AnalysisSession(
+        selections["ticker"],
+        selections["analysis_date"],
         selected_analyst_keys,
-        config=config,
-        debug=True,
+        config,
+        asset_type=selections["asset_type"],
         callbacks=[stats_handler],
+        debug=True,
     )
 
     # Initialize message buffer with selected analysts
@@ -1098,185 +937,24 @@ def run_analysis(checkpoint: bool | None = None):
         )
         update_display(layout, stats_handler=stats_handler, start_time=start_time)
 
-        # Update agent status to in_progress for the first analyst
-        first_analyst = get_initial_analyst_node(analyst_execution_plan)
-        message_buffer.update_agent_status(first_analyst, "in_progress")
-        analyst_wall_time_tracker.mark_started(selected_analyst_keys[0])
-        update_display(layout, stats_handler=stats_handler, start_time=start_time)
-
         # Create spinner text
         spinner_text = (
             f"Analyzing {selections['ticker']} on {selections['analysis_date']}..."
         )
         update_display(layout, spinner_text, stats_handler=stats_handler, start_time=start_time)
 
-        # Initialize state and get graph args with callbacks.
-        # Resolve the instrument identity once here so all agents anchor to
-        # the real company (#814); the CLI builds state directly rather than
-        # going through propagate(), so this must happen on the CLI path too.
-        instrument_context = graph.resolve_instrument_context(
-            selections["ticker"], selections["asset_type"]
-        )
-        init_agent_state = graph.propagator.create_initial_state(
-            selections["ticker"],
-            selections["analysis_date"],
-            asset_type=selections["asset_type"],
-            instrument_context=instrument_context,
-        )
-        # Pass callbacks to graph config for tool execution tracking
-        # (LLM tracking is handled separately via LLM constructor)
-        args = graph.propagator.get_graph_args(callbacks=[stats_handler])
+        # Drive the shared session and repaint on every event. The session
+        # owns status transitions, message de-duplication and checkpoint
+        # teardown; exceptions still propagate exactly as before.
+        for event in session.run():
+            apply_event(message_buffer, event)
+            update_display(layout, stats_handler=stats_handler, start_time=start_time)
 
-        # Recompile with a checkpointer and inject the thread_id so --checkpoint
-        # actually saves and resumes on the CLI path (#1249); a no-op when
-        # checkpointing is disabled. Torn down in the finally below.
-        checkpoint_tid = graph.begin_checkpoint(
-            selections["ticker"], selections["analysis_date"], selections["asset_type"]
-        )
-        if checkpoint_tid is not None:
-            args.setdefault("config", {}).setdefault("configurable", {})["thread_id"] = checkpoint_tid
-
-        # Stream the analysis. On resume, feed None so LangGraph continues the
-        # interrupted run instead of re-appending the initial state (#1249); the
-        # try/finally tears the checkpointer down even if the stream raises.
-        trace = []
-        try:
-            for chunk in graph.graph.stream(graph.checkpoint_input(init_agent_state), **args):
-                # Process all messages in chunk, deduplicating by message ID
-                for message in chunk.get("messages", []):
-                    msg_id = getattr(message, "id", None)
-                    if msg_id is not None:
-                        if msg_id in message_buffer._processed_message_ids:
-                            continue
-                        message_buffer._processed_message_ids.add(msg_id)
-
-                    msg_type, content = classify_message_type(message)
-                    if content and content.strip():
-                        message_buffer.add_message(msg_type, content)
-
-                    if hasattr(message, "tool_calls") and message.tool_calls:
-                        for tool_call in message.tool_calls:
-                            if isinstance(tool_call, dict):
-                                message_buffer.add_tool_call(tool_call["name"], tool_call["args"])
-                            else:
-                                message_buffer.add_tool_call(tool_call.name, tool_call.args)
-
-                # Update analyst statuses based on report state (runs on every chunk)
-                update_analyst_statuses(
-                    message_buffer,
-                    chunk,
-                    wall_time_tracker=analyst_wall_time_tracker,
-                )
-
-                # Research Team - Handle Investment Debate State
-                if chunk.get("investment_debate_state"):
-                    debate_state = chunk["investment_debate_state"]
-                    bull_hist = debate_state.get("bull_history", "").strip()
-                    bear_hist = debate_state.get("bear_history", "").strip()
-                    judge = debate_state.get("judge_decision", "").strip()
-
-                    # Only update status when there's actual content
-                    if bull_hist or bear_hist:
-                        update_research_team_status("in_progress")
-                    if bull_hist:
-                        message_buffer.update_report_section(
-                            "investment_plan", f"### Bull Researcher Analysis\n{bull_hist}"
-                        )
-                    if bear_hist:
-                        message_buffer.update_report_section(
-                            "investment_plan", f"### Bear Researcher Analysis\n{bear_hist}"
-                        )
-                    if judge:
-                        message_buffer.update_report_section(
-                            "investment_plan", f"### Research Manager Decision\n{judge}"
-                        )
-                        update_research_team_status("completed")
-                        message_buffer.update_agent_status("Trader", "in_progress")
-
-                # Trading Team
-                if chunk.get("trader_investment_plan"):
-                    message_buffer.update_report_section(
-                        "trader_investment_plan", chunk["trader_investment_plan"]
-                    )
-                    if message_buffer.agent_status.get("Trader") != "completed":
-                        message_buffer.update_agent_status("Trader", "completed")
-                        message_buffer.update_agent_status("Aggressive Analyst", "in_progress")
-
-                # Risk Management Team - Handle Risk Debate State
-                if chunk.get("risk_debate_state"):
-                    risk_state = chunk["risk_debate_state"]
-                    agg_hist = risk_state.get("aggressive_history", "").strip()
-                    con_hist = risk_state.get("conservative_history", "").strip()
-                    neu_hist = risk_state.get("neutral_history", "").strip()
-                    judge = risk_state.get("judge_decision", "").strip()
-
-                    if agg_hist:
-                        if message_buffer.agent_status.get("Aggressive Analyst") != "completed":
-                            message_buffer.update_agent_status("Aggressive Analyst", "in_progress")
-                        message_buffer.update_report_section(
-                            "final_trade_decision", f"### Aggressive Analyst Analysis\n{agg_hist}"
-                        )
-                    if con_hist:
-                        if message_buffer.agent_status.get("Conservative Analyst") != "completed":
-                            message_buffer.update_agent_status("Conservative Analyst", "in_progress")
-                        message_buffer.update_report_section(
-                            "final_trade_decision", f"### Conservative Analyst Analysis\n{con_hist}"
-                        )
-                    if neu_hist:
-                        if message_buffer.agent_status.get("Neutral Analyst") != "completed":
-                            message_buffer.update_agent_status("Neutral Analyst", "in_progress")
-                        message_buffer.update_report_section(
-                            "final_trade_decision", f"### Neutral Analyst Analysis\n{neu_hist}"
-                        )
-                    if judge and message_buffer.agent_status.get("Portfolio Manager") != "completed":
-                        message_buffer.update_agent_status("Portfolio Manager", "in_progress")
-                        message_buffer.update_report_section(
-                            "final_trade_decision", f"### Portfolio Manager Decision\n{judge}"
-                        )
-                        message_buffer.update_agent_status("Aggressive Analyst", "completed")
-                        message_buffer.update_agent_status("Conservative Analyst", "completed")
-                        message_buffer.update_agent_status("Neutral Analyst", "completed")
-                        message_buffer.update_agent_status("Portfolio Manager", "completed")
-
-                # Update the display
-                update_display(layout, stats_handler=stats_handler, start_time=start_time)
-
-                trace.append(chunk)
-
-            # Clean run: drop this run's checkpoint so a later run starts fresh.
-            # A mid-stream failure skips this, keeping the checkpoint for resume.
-            graph.clear_checkpoint_on_success(
-                selections["ticker"], selections["analysis_date"], selections["asset_type"]
-            )
-        finally:
-            # Always restore the plain uncheckpointed graph, even on failure.
-            graph.end_checkpoint()
-
-        # Streamed chunks are per-node deltas, not full state. Merge them
-        # so every report field populated across the run is present.
-        final_state = {}
-        for chunk in trace:
-            final_state.update(chunk)
-
-        # Update all agent statuses to completed
-        for agent in message_buffer.agent_status:
-            message_buffer.update_agent_status(agent, "completed")
-
-        message_buffer.add_message(
-            "System", f"Completed analysis for {selections['analysis_date']}"
-        )
-        message_buffer.add_message("System", analyst_wall_time_tracker.format_summary())
-
-        # Update final report sections
-        for section in message_buffer.report_sections:
-            if section in final_state:
-                message_buffer.update_report_section(section, final_state[section])
-
-        update_display(layout, stats_handler=stats_handler, start_time=start_time)
+        final_state = session.final_state
 
     # Post-analysis prompts (outside Live context for clean interaction)
     console.print("\n[bold cyan]Analysis Complete![/bold cyan]\n")
-    console.print(f"[dim]{analyst_wall_time_tracker.format_summary()}[/dim]")
+    console.print(f"[dim]{session.wall_time_tracker.format_summary()}[/dim]")
 
     # Prompt to save report
     save_choice = typer.prompt("Save report?", default="Y").strip().upper()
