@@ -9,6 +9,64 @@
 
 ---
 
+## 0'. 实施进度（2026-09-09 更新）
+
+第 11 节的 1–5 步已落地，第 6 步准备就绪但尚未实跑：
+
+| 步骤 | 状态 | 产物 |
+|---|---|---|
+| 1 环境重建 + pytest 基线 | ✅ | `.venv`（Python 3.12.14）；基线 649 passed / 2 skipped |
+| 2 抽 `session.py`，CLI 改用 | ✅ | `tradingagents/session.py`；`cli/main.py` 少约 250 行；回归后 **680 passed**（新增 31 条） |
+| 3 `ipc_main.py` + 协议 | ✅ | `tradingagents/ipc_main.py`、`tradingagents/PROTOCOL.md` |
+| 4 Electron 骨架 | ✅ | `desktop/`，`npm run build` 通过 |
+| 5 React 界面 | ✅ | 三栏看板 / 新建分析 / 设置 / 历史，对齐 `docs/ui-prototype.html` |
+| 6 打包链路 | ✅ 已实跑 | sidecar 140MB、`TradingAgents.app` 472MB、ad-hoc 签名、内嵌 sidecar 可执行 |
+| 7 历史 / 图表 / 断点续跑 | 部分 | 历史浏览已可用；图表与「恢复上次运行」入口未做 |
+
+与原计划的三处偏差，均为落地时发现的事实：
+
+1. **TypeScript 取 5.9.3**（计划的回退项）而非 7.0.2 —— 先保证 `tsc --noEmit`
+   与 electron-vite 5 的组合稳定，升级是独立的一步。
+2. **`react-resizable-panels@4` 的 API 已改名**：`PanelGroup/PanelResizeHandle`
+   → `Group/Separator`，宽度持久化改用 `useDefaultLayout({ id, storage })`。
+   计划里的 `autoSaveId` 写法在 4.x 不存在。
+3. **`detect_asset_type` 下沉到核心**（`tradingagents/dataflows/symbol_utils.py`），
+   `cli/utils.py` 复用同一份 `CRYPTO_SUFFIXES`。否则 sidecar 为了判断资产类型
+   就得 `import cli`，把 rich / typer 重新拖进 PyInstaller 的依赖图，
+   直接废掉第 10 节那份「免费优化」。
+
+`command: "options"` 已实现（即第 3.9 节建议的 `--dump-options`）：设置界面的
+提供方、模型清单、数据源类别全部由 Python 下发，前端不再维护第二份目录。
+
+### 实跑验证过的两条路径
+
+**开发态**：NVDA / 仅市场分析师 / 本机 openai_compatible 中继，7 分 33 秒完成，
+评级 Overweight，报告 4/4 并落盘 `reports/NVDA_20260909_174310/`，侧栏历史可读回。
+
+**打包态**：`.app` 从 `app.asar` 加载、成功 spawn 内嵌 sidecar（设置页目录由它下发）、
+事件正常到达界面；未配置密钥时以 `error` 事件呈现「已失败」——因为打包态刻意不再
+读取仓库的 `.env`（`app.isPackaged` 时跳过），这与 2.2 节的密钥策略一致。
+
+### 实跑中发现并修掉的问题（计划里没有预见）
+
+1. **`SIGTERM` 取消完全无效**（最严重）。原实现的取消异常继承 `Exception`，被
+   LangGraph / LLM SDK 内部的 `except Exception` 吞掉，用户点了「停止」run 仍在
+   继续烧 token。改为继承 `BaseException`（与 `KeyboardInterrupt` 同类）后 0 秒退出。
+   另外 LangGraph 会留下非守护线程，正常返回会卡在 `threading._shutdown` 等待
+   在途的 LLM 调用返回，远超调用方的 SIGKILL 期限——发出事件后必须硬退出。
+2. **`.env` 里的空值键被当成「已配置」**。`.env.example` 派生的文件里满是
+   `OPENAI_API_KEY=`，只按键名判断会让设置界面全绿。
+3. **ruff 会去扫 PyInstaller 产物**。`desktop/build/sidecar/_internal/` 里有上万个
+   第三方 `.py`，`ruff check .` 直接爆出 19264 条。已加入 `extend-exclude`。
+   第 8 节「desktop/ 下不要放任何 .py」的约束，构建产物是个例外。
+4. **PyInstaller 的缓存目录**默认在 `~/Library/Application Support/pyinstaller`，
+   受限环境下会 `PermissionError`。构建脚本已把 `PYINSTALLER_CONFIG_DIR` 固定到
+   `desktop/build/` 内，顺带让构建自包含。
+5. **设置异步加载与表单初值的竞态**：新建分析表单在挂载时取设置初值，冷启动会
+   静默显示默认值。已在设置就位后重挂载表单。
+
+---
+
 ## 0. 环境重建（第一件事）
 
 旧 `.venv` 故意没拷贝 —— 它内含指向旧路径的 editable 安装，拷过来会导致
