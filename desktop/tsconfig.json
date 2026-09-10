@@ -1,4 +1,15 @@
 {
+  // Solution file: the two project references below own the real compilation.
+  // The aliases are duplicated here because tooling that reads only the root
+  // tsconfig (the shadcn CLI, editors) cannot see them through references.
+  // `files: []` keeps this file from compiling anything itself.
   "files": [],
-  "references": [{ "path": "./tsconfig.node.json" }, { "path": "./tsconfig.web.json" }]
+  "references": [{ "path": "./tsconfig.node.json" }, { "path": "./tsconfig.web.json" }],
+  "compilerOptions": {
+    "baseUrl": ".",
+    "paths": {
+      "@renderer/*": ["src/renderer/*"],
+      "@shared/*": ["src/shared/*"]
+    }
+  }
 }
