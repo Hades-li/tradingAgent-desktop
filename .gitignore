@@ -228,7 +228,3 @@ node_modules/
 desktop/out/
 desktop/release/
 *.tsbuildinfo
-
-# Git worktrees checked out inside the repo. Not hidden: a dot-directory is
-# invisible in Finder and most editors, which makes the branch look missing.
-worktrees/
