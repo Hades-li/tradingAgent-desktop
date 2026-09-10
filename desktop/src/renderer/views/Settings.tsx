@@ -5,18 +5,44 @@
  */
 
 import { useEffect, useState } from 'react'
-import { Shield } from 'lucide-react'
-import { CUSTOM_ENDPOINT_PROVIDERS } from '@shared/settings'
+import { Alert, AlertDescription, AlertTitle } from '@renderer/components/ui/alert'
+import { Badge } from '@renderer/components/ui/badge'
+import { Button } from '@renderer/components/ui/button'
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle
+} from '@renderer/components/ui/card'
+import {
+  Field,
+  FieldContent,
+  FieldDescription,
+  FieldGroup,
+  FieldLabel,
+  FieldTitle
+} from '@renderer/components/ui/field'
+import {
+  InputGroup,
+  InputGroupAddon,
+  InputGroupButton,
+  InputGroupInput
+} from '@renderer/components/ui/input-group'
+import { Input } from '@renderer/components/ui/input'
+import {
+  Select,
+  SelectContent,
+  SelectGroup,
+  SelectItem,
+  SelectTrigger,
+  SelectValue
+} from '@renderer/components/ui/select'
+import { Slider } from '@renderer/components/ui/slider'
+import { Switch } from '@renderer/components/ui/switch'
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@renderer/components/ui/tabs'
 import { useSettingsStore } from '@renderer/store/settingsStore'
-
-type Tab = 'provider' | 'model' | 'data' | 'run'
-
-const TABS: { id: Tab; label: string }[] = [
-  { id: 'provider', label: '提供方与密钥' },
-  { id: 'model', label: '模型与推理' },
-  { id: 'data', label: '数据源' },
-  { id: 'run', label: '运行默认值' }
-]
+import { CUSTOM_ENDPOINT_PROVIDERS } from '@shared/settings'
 
 const VENDOR_LABELS: Record<string, string> = {
   core_stock_apis: '行情接口',
@@ -27,14 +53,22 @@ const VENDOR_LABELS: Record<string, string> = {
   prediction_markets: '预测市场'
 }
 
+const LANGUAGES = [
+  { label: '中文', value: '中文' },
+  { label: 'English', value: 'English' }
+]
+
 export function SettingsView(): React.JSX.Element {
   const { settings, options, keyStatus, optionsError, update, save, setKey, clearKey } =
     useSettingsStore()
-  const [tab, setTab] = useState<Tab>('provider')
   const [saved, setSaved] = useState(false)
 
   const provider = options?.providers.find((item) => item.id === settings.llmProvider)
   const showEndpoint = CUSTOM_ENDPOINT_PROVIDERS.includes(settings.llmProvider)
+  const providerItems = (options?.providers ?? [{ id: settings.llmProvider }]).map((item) => ({
+    label: item.id,
+    value: item.id
+  }))
 
   useEffect(() => {
     if (!saved) return
@@ -43,70 +77,80 @@ export function SettingsView(): React.JSX.Element {
   }, [saved])
 
   return (
-    <div className="flex h-full min-h-0 flex-col">
-      <header className="flex items-center gap-3 border-b border-line bg-panel px-4 py-2">
-        <strong className="text-[14px]">模型配置</strong>
-        <nav className="flex gap-1">
-          {TABS.map((item) => (
-            <button
-              key={item.id}
-              type="button"
-              onClick={() => setTab(item.id)}
-              className={`rounded-md px-2 py-[2px] text-[12px] ${
-                tab === item.id ? 'bg-accent text-white' : 'text-muted hover:bg-panel2'
-              }`}
-            >
-              {item.label}
-            </button>
-          ))}
-        </nav>
-      </header>
+    <Tabs defaultValue="provider" className="flex h-full min-h-0 flex-col gap-0">
+      <div className="flex items-center gap-3 border-b px-4 py-2">
+        <span className="font-medium">模型配置</span>
+        <TabsList>
+          <TabsTrigger value="provider">提供方与密钥</TabsTrigger>
+          <TabsTrigger value="model">模型与推理</TabsTrigger>
+          <TabsTrigger value="data">数据源</TabsTrigger>
+          <TabsTrigger value="run">运行默认值</TabsTrigger>
+        </TabsList>
+      </div>
 
-      <div className="flex-1 overflow-y-auto p-4">
+      <div className="min-h-0 flex-1 overflow-y-auto p-4">
         {optionsError && (
-          <p className="mb-3 rounded-md border border-warn/40 bg-warn/10 px-3 py-2 text-[12px] text-warn">
-            无法读取模型目录：{optionsError}
-          </p>
+          <Alert variant="destructive" className="mb-4">
+            <AlertTitle>无法读取模型目录</AlertTitle>
+            <AlertDescription>{optionsError}</AlertDescription>
+          </Alert>
         )}
 
-        {tab === 'provider' && (
-          <div className="flex flex-col gap-4">
-            <section className="card">
-              <h4 className="mb-3 text-[13px] font-semibold">活动提供方</h4>
-              <div className="grid grid-cols-2 gap-4">
-                <Field label="LLM 提供方" env="TRADINGAGENTS_LLM_PROVIDER">
-                  <select
-                    className="field"
+        <TabsContent value="provider" className="flex flex-col gap-4">
+          <Card>
+            <CardHeader>
+              <CardTitle>活动提供方</CardTitle>
+              <CardDescription>决定使用哪家的模型，以及是否需要自定义端点。</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <FieldGroup className="grid grid-cols-2 gap-4">
+                <Field>
+                  <FieldLabel htmlFor="provider">LLM 提供方</FieldLabel>
+                  <Select
+                    items={providerItems}
                     value={settings.llmProvider}
-                    onChange={(event) => update({ llmProvider: event.target.value })}
+                    onValueChange={(value) => update({ llmProvider: value as string })}
                   >
-                    {(options?.providers ?? [{ id: settings.llmProvider }]).map((item) => (
-                      <option key={item.id} value={item.id}>
-                        {item.id}
-                      </option>
-                    ))}
-                  </select>
+                    <SelectTrigger id="provider">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectGroup>
+                        {providerItems.map((item) => (
+                          <SelectItem key={item.value} value={item.value}>
+                            {item.label}
+                          </SelectItem>
+                        ))}
+                      </SelectGroup>
+                    </SelectContent>
+                  </Select>
+                  <FieldDescription>TRADINGAGENTS_LLM_PROVIDER</FieldDescription>
                 </Field>
                 {showEndpoint && (
-                  <Field
-                    label="自定义端点"
-                    env="TRADINGAGENTS_LLM_BACKEND_URL"
-                    hint="仅本地运行时与通用 OpenAI 兼容端点需要填写"
-                  >
-                    <input
-                      className="field"
+                  <Field>
+                    <FieldLabel htmlFor="endpoint">自定义端点</FieldLabel>
+                    <Input
+                      id="endpoint"
                       value={settings.backendUrl ?? ''}
                       placeholder="http://localhost:11434/v1"
                       onChange={(event) => update({ backendUrl: event.target.value || null })}
                     />
+                    <FieldDescription>TRADINGAGENTS_LLM_BACKEND_URL</FieldDescription>
                   </Field>
                 )}
-              </div>
-            </section>
+              </FieldGroup>
+            </CardContent>
+          </Card>
 
-            <section className="card">
-              <h4 className="mb-3 text-[13px] font-semibold">API 密钥</h4>
-              <div className="flex flex-col gap-2">
+          <Card>
+            <CardHeader>
+              <CardTitle>API 密钥</CardTitle>
+              <CardDescription>
+                密钥经系统钥匙串加密存储，仅在启动分析子进程时注入其环境变量；既不写入 .env，也不会回传到界面层。
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <FieldGroup>
                 {(options?.providers ?? [])
                   .filter((item) => item.apiKeyEnv)
                   .map((item) => (
@@ -120,198 +164,240 @@ export function SettingsView(): React.JSX.Element {
                       onClear={clearKey}
                     />
                   ))}
-              </div>
-              <p className="mt-3 flex items-start gap-2 text-[11px] text-muted">
-                <Shield size={13} className="mt-[2px] shrink-0" />
-                <span>
-                  密钥经系统钥匙串加密存储，仅在启动分析子进程时注入其环境变量；既不写入{' '}
-                  <code>.env</code>，也不会回传到界面层。标记为“来自 .env”的项来自项目根目录的{' '}
-                  <code>.env</code> 兜底。
-                </span>
-              </p>
-            </section>
-          </div>
-        )}
+              </FieldGroup>
+            </CardContent>
+          </Card>
+        </TabsContent>
 
-        {tab === 'model' && (
-          <div className="flex flex-col gap-4">
-            <section className="card">
-              <h4 className="mb-3 text-[13px] font-semibold">模型分工</h4>
-              <div className="grid grid-cols-2 gap-4">
-                <Field
-                  label="深度思考模型"
-                  env="TRADINGAGENTS_DEEP_THINK_LLM"
-                  hint="用于研究辩论、风险辩论与最终裁定"
-                >
+        <TabsContent value="model" className="flex flex-col gap-4">
+          <Card>
+            <CardHeader>
+              <CardTitle>模型分工</CardTitle>
+              <CardDescription>深度模型负责裁定，快速模型负责工具调用与摘要。</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <FieldGroup className="grid grid-cols-2 gap-4">
+                <Field>
+                  <FieldLabel htmlFor="deep-model">深度思考模型</FieldLabel>
                   <ModelInput
+                    id="deep-model"
                     value={settings.deepThinkLlm}
                     options={provider?.deepModels ?? []}
                     onChange={(value) => update({ deepThinkLlm: value })}
                   />
+                  <FieldDescription>TRADINGAGENTS_DEEP_THINK_LLM</FieldDescription>
                 </Field>
-                <Field
-                  label="快速思考模型"
-                  env="TRADINGAGENTS_QUICK_THINK_LLM"
-                  hint="用于工具调用、摘要与反思"
-                >
+                <Field>
+                  <FieldLabel htmlFor="quick-model">快速思考模型</FieldLabel>
                   <ModelInput
+                    id="quick-model"
                     value={settings.quickThinkLlm}
                     options={provider?.quickModels ?? []}
                     onChange={(value) => update({ quickThinkLlm: value })}
                   />
+                  <FieldDescription>TRADINGAGENTS_QUICK_THINK_LLM</FieldDescription>
                 </Field>
-              </div>
-            </section>
+              </FieldGroup>
+            </CardContent>
+          </Card>
 
-            <section className="card">
-              <h4 className="mb-3 text-[13px] font-semibold">推理与采样</h4>
-              <ReasoningControls />
-              <div className="mt-3 grid grid-cols-3 gap-4">
-                <Field
-                  label={`温度 · ${settings.temperature === null ? '跟随默认' : settings.temperature}`}
-                  env="TRADINGAGENTS_TEMPERATURE"
-                  hint="最左为不下发该参数（None），与显式设 0 不同"
-                >
-                  <input
-                    type="range"
-                    min={-1}
-                    max={20}
+          <Card>
+            <CardHeader>
+              <CardTitle>推理与采样</CardTitle>
+              <CardDescription>留空表示不下发该参数，交由提供方使用自身默认值。</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <FieldGroup>
+                <ReasoningControls />
+                <FieldGroup className="grid grid-cols-3 gap-4">
+                  <Field>
+                    <FieldLabel htmlFor="temperature">
+                      温度 · {settings.temperature === null ? '跟随默认' : settings.temperature}
+                    </FieldLabel>
+                    <Slider
+                      id="temperature"
+                      min={-1}
+                      max={20}
+                      step={1}
+                      value={
+                        settings.temperature === null ? -1 : Math.round(settings.temperature * 10)
+                      }
+                      onValueChange={(value) => {
+                        const raw = value as number
+                        update({ temperature: raw < 0 ? null : raw / 10 })
+                      }}
+                    />
+                    <FieldDescription>最左为 None，与显式设 0 不同</FieldDescription>
+                  </Field>
+                  <Field>
+                    <FieldLabel htmlFor="max-tokens">输出上限</FieldLabel>
+                    <NumberInput
+                      id="max-tokens"
+                      value={settings.maxTokens}
+                      min={1}
+                      onChange={(value) => update({ maxTokens: value })}
+                    />
+                    <FieldDescription>TRADINGAGENTS_MAX_TOKENS</FieldDescription>
+                  </Field>
+                  <Field>
+                    <FieldLabel htmlFor="retries">重试预算</FieldLabel>
+                    <NumberInput
+                      id="retries"
+                      value={settings.llmMaxRetries}
+                      min={0}
+                      max={10}
+                      onChange={(value) => update({ llmMaxRetries: value })}
+                    />
+                    <FieldDescription>应对突发 429 限流</FieldDescription>
+                  </Field>
+                </FieldGroup>
+              </FieldGroup>
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        <TabsContent value="data">
+          <Card>
+            <CardHeader>
+              <CardTitle>数据供应商链</CardTitle>
+              <CardDescription>
+                供应商链是精确的：请求不会被静默路由到未选择的供应商。填写多个（逗号分隔）表示按顺序回退。
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <FieldGroup className="grid grid-cols-2 gap-4">
+                {Object.entries(settings.dataVendors).map(([category, value]) => (
+                  <Field key={category}>
+                    <FieldLabel htmlFor={`vendor-${category}`}>
+                      {VENDOR_LABELS[category] ?? category}
+                    </FieldLabel>
+                    <Input
+                      id={`vendor-${category}`}
+                      value={value}
+                      onChange={(event) =>
+                        update({
+                          dataVendors: { ...settings.dataVendors, [category]: event.target.value }
+                        })
+                      }
+                    />
+                    <FieldDescription>{category}</FieldDescription>
+                  </Field>
+                ))}
+              </FieldGroup>
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        <TabsContent value="run" className="flex flex-col gap-4">
+          <Card>
+            <CardHeader>
+              <CardTitle>辩论深度</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <FieldGroup className="grid grid-cols-2 gap-4">
+                <Field>
+                  <FieldLabel htmlFor="debate">研究辩论轮次 · {settings.maxDebateRounds}</FieldLabel>
+                  <Slider
+                    id="debate"
+                    min={1}
+                    max={5}
                     step={1}
-                    value={settings.temperature === null ? -1 : Math.round(settings.temperature * 10)}
-                    onChange={(event) => {
-                      const raw = Number(event.target.value)
-                      update({ temperature: raw < 0 ? null : raw / 10 })
-                    }}
-                    className="w-full"
-                  />
-                </Field>
-                <Field label="输出上限" env="TRADINGAGENTS_MAX_TOKENS" hint="留空表示跟随提供方默认">
-                  <NumberInput
-                    value={settings.maxTokens}
-                    min={1}
-                    onChange={(value) => update({ maxTokens: value })}
-                  />
-                </Field>
-                <Field label="重试预算" env="TRADINGAGENTS_LLM_MAX_RETRIES" hint="应对突发 429 限流">
-                  <NumberInput
-                    value={settings.llmMaxRetries}
-                    min={0}
-                    max={10}
-                    onChange={(value) => update({ llmMaxRetries: value })}
-                  />
-                </Field>
-              </div>
-            </section>
-          </div>
-        )}
-
-        {tab === 'data' && (
-          <section className="card">
-            <h4 className="mb-3 text-[13px] font-semibold">数据供应商链</h4>
-            <div className="grid grid-cols-2 gap-4">
-              {Object.entries(settings.dataVendors).map(([category, value]) => (
-                <Field key={category} label={VENDOR_LABELS[category] ?? category} env={category}>
-                  <input
-                    className="field"
-                    value={value}
-                    onChange={(event) =>
-                      update({
-                        dataVendors: { ...settings.dataVendors, [category]: event.target.value }
-                      })
-                    }
-                  />
-                </Field>
-              ))}
-            </div>
-            <p className="mt-3 text-[11px] text-muted">
-              供应商链是<strong>精确</strong>的：请求不会被静默路由到未选择的供应商。填写多个（逗号分隔）表示按顺序回退。
-            </p>
-          </section>
-        )}
-
-        {tab === 'run' && (
-          <div className="flex flex-col gap-4">
-            <section className="card">
-              <h4 className="mb-3 text-[13px] font-semibold">辩论深度</h4>
-              <div className="grid grid-cols-2 gap-4">
-                <Field label={`研究辩论轮次 · ${settings.maxDebateRounds}`} env="TRADINGAGENTS_MAX_DEBATE_ROUNDS">
-                  <input
-                    type="range"
-                    min={1}
-                    max={5}
                     value={settings.maxDebateRounds}
-                    onChange={(event) => update({ maxDebateRounds: Number(event.target.value) })}
-                    className="w-full"
+                    onValueChange={(value) => update({ maxDebateRounds: value as number })}
                   />
+                  <FieldDescription>TRADINGAGENTS_MAX_DEBATE_ROUNDS</FieldDescription>
                 </Field>
-                <Field label={`风险辩论轮次 · ${settings.maxRiskRounds}`} env="TRADINGAGENTS_MAX_RISK_ROUNDS">
-                  <input
-                    type="range"
+                <Field>
+                  <FieldLabel htmlFor="risk">风险辩论轮次 · {settings.maxRiskRounds}</FieldLabel>
+                  <Slider
+                    id="risk"
                     min={1}
                     max={5}
+                    step={1}
                     value={settings.maxRiskRounds}
-                    onChange={(event) => update({ maxRiskRounds: Number(event.target.value) })}
-                    className="w-full"
+                    onValueChange={(value) => update({ maxRiskRounds: value as number })}
                   />
+                  <FieldDescription>TRADINGAGENTS_MAX_RISK_ROUNDS</FieldDescription>
                 </Field>
-              </div>
-            </section>
-            <section className="card">
-              <h4 className="mb-3 text-[13px] font-semibold">输出与持久化</h4>
-              <div className="grid grid-cols-2 gap-4">
-                <Field label="输出语言" env="TRADINGAGENTS_OUTPUT_LANGUAGE">
-                  <select
-                    className="field"
-                    value={settings.outputLanguage}
-                    onChange={(event) => update({ outputLanguage: event.target.value })}
-                  >
-                    <option value="中文">中文</option>
-                    <option value="English">English</option>
-                  </select>
-                </Field>
-                <Field
-                  label="对标基准"
-                  env="TRADINGAGENTS_BENCHMARK_TICKER"
-                  hint="留空则按交易所后缀自动选择：.HK→^HSI、.SS→000001.SS、美股→SPY"
-                >
-                  <input
-                    className="field"
-                    value={settings.benchmarkTicker ?? ''}
-                    placeholder="自动"
-                    onChange={(event) => update({ benchmarkTicker: event.target.value || null })}
+              </FieldGroup>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader>
+              <CardTitle>输出与持久化</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <FieldGroup>
+                <FieldGroup className="grid grid-cols-2 gap-4">
+                  <Field>
+                    <FieldLabel htmlFor="output-language">输出语言</FieldLabel>
+                    <Select
+                      items={LANGUAGES}
+                      value={settings.outputLanguage}
+                      onValueChange={(value) => update({ outputLanguage: value as string })}
+                    >
+                      <SelectTrigger id="output-language">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectGroup>
+                          {LANGUAGES.map((item) => (
+                            <SelectItem key={item.value} value={item.value}>
+                              {item.label}
+                            </SelectItem>
+                          ))}
+                        </SelectGroup>
+                      </SelectContent>
+                    </Select>
+                    <FieldDescription>TRADINGAGENTS_OUTPUT_LANGUAGE</FieldDescription>
+                  </Field>
+                  <Field>
+                    <FieldLabel htmlFor="benchmark">对标基准</FieldLabel>
+                    <Input
+                      id="benchmark"
+                      value={settings.benchmarkTicker ?? ''}
+                      placeholder="自动"
+                      onChange={(event) =>
+                        update({ benchmarkTicker: event.target.value || null })
+                      }
+                    />
+                    <FieldDescription>
+                      留空则按后缀自动选择：.HK→^HSI、.SS→000001.SS、美股→SPY
+                    </FieldDescription>
+                  </Field>
+                </FieldGroup>
+                <Field orientation="horizontal">
+                  <Switch
+                    id="checkpoint-default"
+                    checked={settings.checkpointEnabled}
+                    onCheckedChange={(checked) => update({ checkpointEnabled: checked })}
                   />
+                  <FieldContent>
+                    <FieldTitle>启用断点续跑</FieldTitle>
+                    <FieldDescription>每个节点后保存状态，崩溃可从最后成功步恢复</FieldDescription>
+                  </FieldContent>
                 </Field>
-              </div>
-              <label className="mt-3 flex items-center gap-2 text-[12px]">
-                <input
-                  type="checkbox"
-                  checked={settings.checkpointEnabled}
-                  onChange={(event) => update({ checkpointEnabled: event.target.checked })}
-                />
-                <span>启用断点续跑</span>
-                <span className="text-muted">每个节点后保存状态，崩溃可从最后成功步恢复</span>
-              </label>
-            </section>
-          </div>
-        )}
+              </FieldGroup>
+            </CardContent>
+          </Card>
+        </TabsContent>
       </div>
 
-      <footer className="flex items-center gap-3 border-t border-line bg-panel px-4 py-2">
-        <button
-          type="button"
+      <div className="flex items-center gap-3 border-t px-4 py-2">
+        <Button
           onClick={() => {
             void save()
             setSaved(true)
           }}
-          className="rounded-lg bg-accent px-3 py-1.5 text-white"
         >
           保存配置
-        </button>
-        <span className="text-[12px] text-muted">
+        </Button>
+        <span className="text-muted-foreground text-sm">
           {saved ? '已保存 · 对新建的分析生效，不影响正在运行的任务' : '保存后对新建的分析生效'}
         </span>
-      </footer>
-    </div>
+      </div>
+    </Tabs>
   )
 }
 
@@ -321,85 +407,100 @@ function ReasoningControls(): React.JSX.Element {
 
   if (provider === 'openai') {
     return (
-      <Field label="推理强度" env="TRADINGAGENTS_OPENAI_REASONING_EFFORT">
+      <Field>
+        <FieldLabel htmlFor="effort">推理强度</FieldLabel>
         <EffortSelect
+          id="effort"
           value={settings.openaiReasoningEffort}
           values={['minimal', 'low', 'medium', 'high']}
           onChange={(value) => update({ openaiReasoningEffort: value })}
         />
+        <FieldDescription>TRADINGAGENTS_OPENAI_REASONING_EFFORT</FieldDescription>
       </Field>
     )
   }
   if (provider === 'anthropic') {
     return (
-      <Field label="思考强度" env="TRADINGAGENTS_ANTHROPIC_EFFORT">
+      <Field>
+        <FieldLabel htmlFor="effort">思考强度</FieldLabel>
         <EffortSelect
+          id="effort"
           value={settings.anthropicEffort}
           values={['low', 'medium', 'high']}
           onChange={(value) => update({ anthropicEffort: value })}
         />
+        <FieldDescription>TRADINGAGENTS_ANTHROPIC_EFFORT</FieldDescription>
       </Field>
     )
   }
   if (provider === 'google') {
     return (
-      <Field label="思考等级" env="TRADINGAGENTS_GOOGLE_THINKING_LEVEL">
+      <Field>
+        <FieldLabel htmlFor="effort">思考等级</FieldLabel>
         <EffortSelect
+          id="effort"
           value={settings.googleThinkingLevel}
           values={['minimal', 'low', 'medium', 'high']}
           onChange={(value) => update({ googleThinkingLevel: value })}
         />
+        <FieldDescription>TRADINGAGENTS_GOOGLE_THINKING_LEVEL</FieldDescription>
       </Field>
     )
   }
-  return <p className="text-[11px] text-muted">当前提供方没有专属推理参数。</p>
+  return <FieldDescription>当前提供方没有专属推理参数。</FieldDescription>
 }
 
 function EffortSelect({
+  id,
   value,
   values,
   onChange
 }: {
+  id: string
   value: string | null
   values: string[]
   onChange: (value: string | null) => void
 }): React.JSX.Element {
+  const items = [{ label: '跟随默认', value: '' }, ...values.map((item) => ({ label: item, value: item }))]
   return (
-    <select
-      className="field"
+    <Select
+      items={items}
       value={value ?? ''}
-      onChange={(event) => onChange(event.target.value || null)}
+      onValueChange={(next) => onChange((next as string) || null)}
     >
-      <option value="">跟随默认</option>
-      {values.map((item) => (
-        <option key={item} value={item}>
-          {item}
-        </option>
-      ))}
-    </select>
+      <SelectTrigger id={id}>
+        <SelectValue />
+      </SelectTrigger>
+      <SelectContent>
+        <SelectGroup>
+          {items.map((item) => (
+            <SelectItem key={item.value} value={item.value}>
+              {item.label}
+            </SelectItem>
+          ))}
+        </SelectGroup>
+      </SelectContent>
+    </Select>
   )
 }
 
 function ModelInput({
+  id,
   value,
   options,
   onChange
 }: {
+  id: string
   value: string
   options: { label: string; value: string }[]
   onChange: (value: string) => void
 }): React.JSX.Element {
   // Providers with fast-moving catalogs expose only "custom", so a free-text
   // box backed by a datalist beats a select that goes stale.
-  const listId = `models-${options.length}-${value}`
+  const listId = `${id}-options`
   return (
     <>
-      <input
-        className="field"
-        value={value}
-        list={listId}
-        onChange={(event) => onChange(event.target.value)}
-      />
+      <Input id={id} value={value} list={listId} onChange={(event) => onChange(event.target.value)} />
       <datalist id={listId}>
         {options
           .filter((option) => option.value !== 'custom')
@@ -414,19 +515,21 @@ function ModelInput({
 }
 
 function NumberInput({
+  id,
   value,
   min,
   max,
   onChange
 }: {
+  id: string
   value: number | null
   min?: number
   max?: number
   onChange: (value: number | null) => void
 }): React.JSX.Element {
   return (
-    <input
-      className="field"
+    <Input
+      id={id}
       type="number"
       min={min}
       max={max}
@@ -438,6 +541,12 @@ function NumberInput({
       }}
     />
   )
+}
+
+const KEY_STATE: Record<string, { label: string; variant: 'default' | 'secondary' | 'outline' }> = {
+  stored: { label: '已保存', variant: 'default' },
+  env: { label: '已配置（来自 .env）', variant: 'secondary' },
+  missing: { label: '未配置', variant: 'outline' }
 }
 
 function KeyRow({
@@ -456,72 +565,46 @@ function KeyRow({
   onClear: (name: string) => Promise<void>
 }): React.JSX.Element {
   const [draft, setDraft] = useState('')
-  const label =
-    state === 'stored' ? '已保存' : state === 'env' ? '已配置（来自 .env）' : '未配置'
-  return (
-    <div
-      className={`flex items-center gap-2 rounded-md border px-2 py-1.5 ${
-        active ? 'border-accent bg-accent/5' : 'border-line'
-      }`}
-    >
-      <span className="w-28 shrink-0 text-[12px]">{provider}</span>
-      <code className="w-52 shrink-0 truncate text-[11px] text-muted">{envName}</code>
-      <span
-        className={`w-40 shrink-0 text-[11px] ${
-          state === 'missing' ? 'text-muted' : state === 'stored' ? 'text-ok' : 'text-warn'
-        }`}
-      >
-        {label}
-      </span>
-      <input
-        className="field"
-        type="password"
-        value={draft}
-        placeholder="粘贴新密钥"
-        onChange={(event) => setDraft(event.target.value)}
-      />
-      <button
-        type="button"
-        disabled={!draft}
-        onClick={() => {
-          void onSave(envName, draft)
-          setDraft('')
-        }}
-        className="shrink-0 rounded-md border border-line px-2 py-[3px] text-[11px] disabled:opacity-40"
-      >
-        保存
-      </button>
-      <button
-        type="button"
-        disabled={state !== 'stored'}
-        onClick={() => void onClear(envName)}
-        className="shrink-0 rounded-md border border-line px-2 py-[3px] text-[11px] text-bad disabled:opacity-40"
-      >
-        清除
-      </button>
-    </div>
-  )
-}
+  const badge = KEY_STATE[state]
 
-function Field({
-  label,
-  env,
-  hint,
-  children
-}: {
-  label: string
-  env?: string
-  hint?: string
-  children: React.ReactNode
-}): React.JSX.Element {
   return (
-    <div className="flex flex-col gap-1">
-      <span className="flex items-center gap-1.5 text-[12px] font-medium">
-        {label}
-        {env && <code className="text-[10px] font-normal text-muted">{env}</code>}
-      </span>
-      {children}
-      {hint && <span className="text-[11px] text-muted">{hint}</span>}
-    </div>
+    <Field orientation="responsive" data-active={active || undefined}>
+      <FieldContent>
+        <FieldTitle>
+          {provider}
+          {active && <Badge variant="outline">当前</Badge>}
+        </FieldTitle>
+        <FieldDescription>
+          {envName} · {badge.label}
+        </FieldDescription>
+      </FieldContent>
+      <InputGroup className="max-w-xs">
+        <InputGroupInput
+          type="password"
+          value={draft}
+          placeholder="粘贴新密钥"
+          aria-label={`${provider} API key`}
+          onChange={(event) => setDraft(event.target.value)}
+        />
+        <InputGroupAddon align="inline-end">
+          <InputGroupButton
+            disabled={!draft}
+            onClick={() => {
+              void onSave(envName, draft)
+              setDraft('')
+            }}
+          >
+            保存
+          </InputGroupButton>
+          <InputGroupButton
+            variant="ghost"
+            disabled={state !== 'stored'}
+            onClick={() => void onClear(envName)}
+          >
+            清除
+          </InputGroupButton>
+        </InputGroupAddon>
+      </InputGroup>
+    </Field>
   )
 }

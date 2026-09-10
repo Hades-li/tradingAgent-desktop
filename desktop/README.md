@@ -52,6 +52,32 @@ xattr -dr com.apple.quarantine /Applications/TradingAgents.app
 
 应用已内建这条提示：子进程启动后立即非零退出时会在界面上显示该命令。
 
+## UI 组件（shadcn）
+
+组件以**源码**形式落在 `src/renderer/components/ui/`，由 CLI 生成，不是运行时依赖。
+底座是 **Base UI**（`@base-ui/react`），预设 `base-nova`，配置见 `components.json`。
+
+```bash
+npx shadcn@latest add <component>     # 新增组件
+npx shadcn@latest add <c> --dry-run   # 先看会动哪些文件
+npx shadcn@latest add <c> --diff <f>  # 升级时对比上游与本地改动
+```
+
+三点约定：
+
+- **语义色**。用 `bg-primary` / `text-muted-foreground`，不要写死颜色；深浅色由
+  `main.tsx` 依据系统设置切换根元素上的 `dark` 类，没有主题开关。
+- **表单用 `Field` 系列**，不要用裸 `div` + `space-y-*`。选项在 2–7 个之间用
+  `ToggleGroup`（事件流的过滤器就是）。
+- **Base UI 不是 Radix**：组合用 `render={<Component />}` 而非 `asChild`，
+  `Select` 需要 `items` 属性，`Slider` 单值传数字而非数组。
+
+`tsconfig.json` 里重复了一份路径别名：CLI 只读根 tsconfig，看不到 references
+里的配置。`files: []` 保证它本身不参与编译。
+
+字体没有采用预设自带的 Geist —— 它没有 CJK 字形，界面是中文，混排会露馅，
+所以 `--font-sans` 保持系统字体栈。
+
 ## 结构
 
 ```

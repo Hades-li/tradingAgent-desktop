@@ -100,8 +100,8 @@ export function App(): React.JSX.Element {
   return (
     <div className="flex h-full min-h-0">
       <Sidebar view={view} onNavigate={navigate} historyVersion={historyVersion} />
-      <main className="flex min-w-0 flex-1 flex-col bg-app">
-        <div className="drag-region h-9 shrink-0 border-b border-line bg-panel2" />
+      <main className="bg-background flex min-w-0 flex-1 flex-col">
+        <div className="drag-region bg-sidebar h-9 shrink-0 border-b" />
         <div className="min-h-0 flex-1">
           {view === 'form' && (
             <NewAnalysis

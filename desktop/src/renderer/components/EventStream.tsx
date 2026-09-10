@@ -1,12 +1,21 @@
 /**
  * Middle column. On a real run tool calls vastly outnumber agent prose, so the
  * filter row is load-bearing rather than decorative.
+ *
+ * The log keeps a native scroll container rather than ScrollArea: auto-follow
+ * needs to read scrollTop off the element it attaches to, and ScrollArea owns
+ * its viewport node internally.
  */
 
 import { useEffect, useMemo, useRef, useState } from 'react'
+import { Badge } from '@renderer/components/ui/badge'
+import { ToggleGroup, ToggleGroupItem } from '@renderer/components/ui/toggle-group'
+import { cn } from '@renderer/lib/utils'
 import type { LogEntry, LogKind } from '@renderer/store/runStore'
 
-const FILTERS: { id: 'all' | LogKind; label: string }[] = [
+type Filter = 'all' | LogKind
+
+const FILTERS: { id: Filter; label: string }[] = [
   { id: 'all', label: '全部' },
   { id: 'tool', label: '工具' },
   { id: 'msg', label: '消息' },
@@ -14,9 +23,9 @@ const FILTERS: { id: 'all' | LogKind; label: string }[] = [
 ]
 
 const KIND_TONE: Record<LogKind, string> = {
-  tool: 'text-accent',
-  msg: 'text-ink',
-  sys: 'text-muted'
+  tool: 'text-primary',
+  msg: 'text-foreground',
+  sys: 'text-muted-foreground'
 }
 
 function timeOf(at: number): string {
@@ -24,7 +33,7 @@ function timeOf(at: number): string {
 }
 
 export function EventStream({ log }: { log: LogEntry[] }): React.JSX.Element {
-  const [filter, setFilter] = useState<'all' | LogKind>('all')
+  const [filter, setFilter] = useState<Filter>('all')
   const bottom = useRef<HTMLDivElement>(null)
   const [follow, setFollow] = useState(true)
 
@@ -39,38 +48,39 @@ export function EventStream({ log }: { log: LogEntry[] }): React.JSX.Element {
 
   return (
     <div className="flex h-full min-h-0 flex-col">
-      <div className="flex flex-wrap gap-1 border-b border-line2 px-2 py-1.5">
-        {FILTERS.map((item) => (
-          <button
-            key={item.id}
-            type="button"
-            onClick={() => setFilter(item.id)}
-            className={`rounded-md px-2 py-[2px] text-[11px] ${
-              filter === item.id ? 'bg-accent text-white' : 'text-muted hover:bg-panel2'
-            }`}
-          >
-            {item.label}
-          </button>
-        ))}
-        <span className="ml-auto self-center text-[11px] text-muted">{visible.length} 条</span>
+      <div className="flex items-center gap-2 border-b px-2 py-1.5">
+        <ToggleGroup
+          value={[filter]}
+          onValueChange={(value) => setFilter((value[0] as Filter) ?? 'all')}
+          size="sm"
+        >
+          {FILTERS.map((item) => (
+            <ToggleGroupItem key={item.id} value={item.id}>
+              {item.label}
+            </ToggleGroupItem>
+          ))}
+        </ToggleGroup>
+        <Badge variant="secondary" className="ml-auto">
+          {visible.length} 条
+        </Badge>
       </div>
       <div
         className="flex-1 overflow-y-auto px-2 py-1.5"
         onScroll={(event) => {
           const element = event.currentTarget
           // Auto-follow only while the user is parked at the bottom.
-          const atBottom =
-            element.scrollHeight - element.scrollTop - element.clientHeight < 24
-          setFollow(atBottom)
+          setFollow(element.scrollHeight - element.scrollTop - element.clientHeight < 24)
         }}
       >
         {visible.map((entry) => (
-          <div key={entry.id} className="mb-1 flex gap-2 text-[12px] leading-[1.5]">
-            <span className="shrink-0 font-mono text-[11px] text-muted">{timeOf(entry.at)}</span>
-            <span className={`shrink-0 font-medium ${KIND_TONE[entry.kind]}`}>{entry.label}</span>
-            <span className="min-w-0 break-words whitespace-pre-wrap text-ink/90">
-              {entry.text}
+          <div key={entry.id} className="mb-1 flex gap-2 text-sm leading-relaxed">
+            <span className="text-muted-foreground shrink-0 font-mono text-xs">
+              {timeOf(entry.at)}
             </span>
+            <span className={cn('shrink-0 font-medium', KIND_TONE[entry.kind])}>
+              {entry.label}
+            </span>
+            <span className="min-w-0 break-words whitespace-pre-wrap">{entry.text}</span>
           </div>
         ))}
         <div ref={bottom} />
