@@ -228,3 +228,6 @@ node_modules/
 desktop/out/
 desktop/release/
 *.tsbuildinfo
+
+# Git worktrees checked out inside the repo (see docs/DESKTOP_DEV_PLAN.md).
+.worktrees/
