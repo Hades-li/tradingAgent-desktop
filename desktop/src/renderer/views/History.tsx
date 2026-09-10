@@ -3,9 +3,12 @@
  */
 
 import { useEffect, useState } from 'react'
+import { FolderOpen, Inbox } from 'lucide-react'
 import Markdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
-import { FolderOpen } from 'lucide-react'
+import { Button } from '@renderer/components/ui/button'
+import { Empty, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from '@renderer/components/ui/empty'
+import { Item, ItemActions, ItemContent, ItemGroup, ItemTitle } from '@renderer/components/ui/item'
 
 interface HistoryEntry {
   id: string
@@ -33,30 +36,41 @@ export function History({ selectedId }: { selectedId: string | null }): React.JS
 
   if (!selectedId) {
     return (
-      <div className="p-6">
-        <h3 className="mb-3 text-[15px] font-semibold">历史记录</h3>
+      <div className="mx-auto w-full max-w-3xl p-6">
+        <h3 className="mb-3 font-medium">历史记录</h3>
         {entries.length === 0 ? (
-          <p className="text-muted">还没有已保存的分析报告。</p>
+          <Empty>
+            <EmptyHeader>
+              <EmptyMedia variant="icon">
+                <Inbox />
+              </EmptyMedia>
+              <EmptyTitle>还没有已保存的分析</EmptyTitle>
+              <EmptyDescription>完成一次分析后，报告会自动落盘并出现在这里。</EmptyDescription>
+            </EmptyHeader>
+          </Empty>
         ) : (
-          <ul className="flex max-w-2xl flex-col gap-1">
+          <ItemGroup>
             {entries.map((entry) => (
-              <li
-                key={entry.id}
-                className="flex items-center gap-3 rounded-md border border-line px-3 py-2"
-              >
-                <strong>{entry.ticker}</strong>
-                <span className="text-muted">{entry.savedAt.replace('T', ' ')}</span>
-                <button
-                  type="button"
-                  className="ml-auto flex items-center gap-1 text-[11px] text-muted hover:text-ink"
-                  onClick={() => void window.desktop.history.reveal(entry.path)}
-                >
-                  <FolderOpen size={12} />
-                  在访达中显示
-                </button>
-              </li>
+              <Item key={entry.id} variant="outline">
+                <ItemContent>
+                  <ItemTitle>{entry.ticker}</ItemTitle>
+                </ItemContent>
+                <ItemActions>
+                  <span className="text-muted-foreground text-sm">
+                    {entry.savedAt.replace('T', ' ')}
+                  </span>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => void window.desktop.history.reveal(entry.path)}
+                  >
+                    <FolderOpen />
+                    在访达中显示
+                  </Button>
+                </ItemActions>
+              </Item>
             ))}
-          </ul>
+          </ItemGroup>
         )}
       </div>
     )
@@ -64,26 +78,25 @@ export function History({ selectedId }: { selectedId: string | null }): React.JS
 
   return (
     <div className="flex h-full flex-col">
-      <header className="flex items-center gap-3 border-b border-line bg-panel px-4 py-2">
+      <header className="flex items-center gap-3 border-b px-4 py-2">
         <strong>{detail?.ticker ?? selectedId}</strong>
-        <span className="text-muted">{detail?.savedAt.replace('T', ' ')}</span>
+        <span className="text-muted-foreground text-sm">
+          {detail?.savedAt.replace('T', ' ')}
+        </span>
         {detail && (
-          <button
-            type="button"
-            className="ml-auto flex items-center gap-1 text-[11px] text-muted hover:text-ink"
+          <Button
+            variant="ghost"
+            size="sm"
+            className="ml-auto"
             onClick={() => void window.desktop.history.reveal(detail.path)}
           >
-            <FolderOpen size={12} />
+            <FolderOpen />
             在访达中显示
-          </button>
+          </Button>
         )}
       </header>
       <div className="md flex-1 overflow-y-auto px-6 py-4">
-        {detail ? (
-          <Markdown remarkPlugins={[remarkGfm]}>{detail.completeReport}</Markdown>
-        ) : (
-          <p className="text-muted">正在读取…</p>
-        )}
+        {detail && <Markdown remarkPlugins={[remarkGfm]}>{detail.completeReport}</Markdown>}
       </div>
     </div>
   )
