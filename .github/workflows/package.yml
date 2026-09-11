@@ -1,0 +1,106 @@
+# Desktop installers. Not part of CI: this runs on demand (Actions → Run
+# workflow) or when a v* tag is pushed, because a packaging run is minutes long
+# and costs Windows/macOS runner minutes at 2x/10x the Linux rate.
+name: Package
+
+on:
+  workflow_dispatch:
+  push:
+    tags: ["v*"]
+
+jobs:
+  windows:
+    name: windows installer (x64)
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: desktop/package-lock.json
+
+      - name: Install the package
+        # PyInstaller freezes whatever the interpreter can import, so the
+        # project has to be installed before the sidecar is built.
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e .
+
+      - name: Build the Python sidecar
+        # PyInstaller cannot cross-compile: it embeds the host CPython and the
+        # platform's native extension binaries, which is the whole reason this
+        # job exists on a Windows runner rather than alongside the macOS build.
+        # Git Bash ships on the runner, so the same script serves both.
+        shell: bash
+        env:
+          TRADINGAGENTS_PYTHON: python
+        run: bash scripts/build-sidecar.sh
+
+      - name: Install desktop dependencies
+        working-directory: desktop
+        run: npm ci
+
+      - name: Build the installer
+        working-directory: desktop
+        run: npm run dist:win
+
+      - name: Upload the installer
+        # The runner is destroyed when the job ends, so anything worth keeping
+        # has to be uploaded; this is what you download from the run page.
+        uses: actions/upload-artifact@v4
+        with:
+          name: TradingAgents-windows-x64
+          path: |
+            desktop/release/*.exe
+            desktop/release/*.blockmap
+          if-no-files-found: error
+          retention-days: 14
+
+  macos:
+    name: macos dmg (arm64)
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: desktop/package-lock.json
+
+      - name: Install the package
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e .
+
+      - name: Build the Python sidecar
+        env:
+          TRADINGAGENTS_PYTHON: python
+        run: bash scripts/build-sidecar.sh
+
+      - name: Install desktop dependencies
+        working-directory: desktop
+        run: npm ci
+
+      - name: Build the DMG
+        working-directory: desktop
+        # Unsigned: electron-builder ad-hoc signs, which is what arm64 needs to
+        # execute at all. Recipients still have to clear the quarantine flag:
+        # xattr -dr com.apple.quarantine /Applications/TradingAgents.app
+        run: npm run dist:mac
+
+      - name: Upload the DMG
+        uses: actions/upload-artifact@v4
+        with:
+          name: TradingAgents-macos-arm64
+          path: |
+            desktop/release/*.dmg
+            desktop/release/*.blockmap
+          if-no-files-found: error
+          retention-days: 14

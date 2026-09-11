@@ -10,11 +10,19 @@ set -euo pipefail
 here="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$here"
 
-python="${TRADINGAGENTS_PYTHON:-$here/.venv/bin/python}"
+# Windows virtualenvs put the interpreter under Scripts/, not bin/.
+if [ -x "$here/.venv/Scripts/python.exe" ]; then
+  default_python="$here/.venv/Scripts/python.exe"
+else
+  default_python="$here/.venv/bin/python"
+fi
+python="${TRADINGAGENTS_PYTHON:-$default_python}"
 outdir="$here/desktop/build"
 work="$here/desktop/build/.pyinstaller"
 
-if [ ! -x "$python" ]; then
+# `command -v` accepts both an absolute path and a bare command name, so CI can
+# pass TRADINGAGENTS_PYTHON=python without knowing where the runner put it.
+if ! command -v "$python" >/dev/null 2>&1; then
   echo "找不到 Python 解释器：$python" >&2
   echo "请先创建虚拟环境：python3 -m venv .venv && .venv/bin/pip install -e '.[dev]'" >&2
   exit 1
