@@ -13,11 +13,11 @@ jobs:
     name: windows installer (x64)
     runs-on: windows-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
         with:
           python-version: "3.12"
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v7
         with:
           node-version: "22"
           cache: npm
@@ -51,7 +51,7 @@ jobs:
       - name: Upload the installer
         # The runner is destroyed when the job ends, so anything worth keeping
         # has to be uploaded; this is what you download from the run page.
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: TradingAgents-windows-x64
           path: |
@@ -64,11 +64,11 @@ jobs:
     name: macos dmg (arm64)
     runs-on: macos-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
         with:
           python-version: "3.12"
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v7
         with:
           node-version: "22"
           cache: npm
@@ -96,7 +96,7 @@ jobs:
         run: npm run dist:mac
 
       - name: Upload the DMG
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: TradingAgents-macos-arm64
           path: |
