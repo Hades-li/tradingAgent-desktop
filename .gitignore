@@ -232,3 +232,6 @@ desktop/release/
 # The Python template's `lib/` rule above targets build artifacts, but it also
 # swallows shadcn's src/renderer/lib/utils.ts, which is source.
 !desktop/src/renderer/lib/
+
+# macOS Finder metadata, created in any directory the user browses.
+.DS_Store
