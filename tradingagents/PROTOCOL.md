@@ -112,6 +112,11 @@ Two details make that actually work, both learned the hard way:
   LLM SDKs wrap node execution in `except Exception`, which swallows an
   ordinary exception and lets the run continue billing after the user pressed
   stop.
+* The analysts run on worker threads, and LangGraph's cleanup waits for every
+  call still in flight (a minute or more with a slow model). The signal handler
+  therefore also starts a two-second grace timer (`CANCEL_GRACE_SECONDS`): if
+  the run has not unwound by then, the sidecar reports the cancellation and
+  exits anyway. This stays under the client's five-second SIGKILL deadline.
 * The sidecar hard-exits once the event is written. LangGraph leaves
   non-daemon worker threads behind, and a normal return blocks in
   `threading._shutdown` until the in-flight LLM call returns — long past the

@@ -306,6 +306,55 @@ class TestSessionEvents(unittest.TestCase):
         self.assertEqual(len(summary), 1)
         self.assertIn("Market ", summary[0])
 
+    def test_repeated_full_state_steps_do_not_replay_finished_work(self):
+        full = {
+            "messages": [],
+            "market_report": "# MKT",
+            "investment_debate_state": {"bull_history": "bull", "bear_history": "bear"},
+            "investment_plan": "go long",
+            "trader_investment_plan": "buy",
+        }
+        session = build_session([full, full, full])
+        events = list(session.run())
+
+        statuses = [(e.data["agent"], e.data["status"]) for e in events if e.type == "agent_status"]
+        self.assertEqual(statuses.count(("Bull Researcher", "in_progress")), 1)
+        self.assertEqual(statuses.count(("Trader", "completed")), 1)
+        # The closing pass re-files each section from the final state; only the
+        # steps before it are compared.
+        done = next(
+            i for i, e in enumerate(events)
+            if e.type == "message" and e.data["content"].startswith("Completed analysis")
+        )
+        sections = [e.data["section"] for e in events[:done] if e.type == "report_section"]
+        self.assertEqual(sections.count("market_report"), 1)
+        self.assertEqual(sections.count("investment_plan"), 1)
+
+    def test_risk_debate_ends_with_the_portfolio_manager_decision(self):
+        session = build_session(
+            [
+                {
+                    "messages": [],
+                    "trader_investment_plan": "buy",
+                    "risk_debate_state": {
+                        "aggressive_history": "agg",
+                        "conservative_history": "con",
+                        "neutral_history": "neu",
+                    },
+                    "final_trade_decision": "Rating: Buy",
+                }
+            ]
+        )
+        events = list(session.run())
+        statuses = [(e.data["agent"], e.data["status"]) for e in events if e.type == "agent_status"]
+        self.assertIn(("Portfolio Manager", "completed"), statuses)
+        final = [
+            e.data["content"]
+            for e in events
+            if e.type == "report_section" and e.data["section"] == "final_trade_decision"
+        ]
+        self.assertEqual(final[0], "### Portfolio Manager Decision\nRating: Buy")
+
     def test_completed_reports_count_requires_finalizing_agent(self):
         session = build_session([{"messages": []}])
         session.report_sections["market_report"] = "# MKT"

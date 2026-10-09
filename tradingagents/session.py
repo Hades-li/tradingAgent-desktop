@@ -298,13 +298,17 @@ class AnalysisSession:
     def _agent_event(self, agent: str, status: str) -> Iterator[RunEvent]:
         # Unknown agents (e.g. an unselected analyst) are ignored, matching the
         # CLI's MessageBuffer.update_agent_status guard.
-        if agent in self.agent_status:
+        # A repeat of the current status is not an event: with the analysts
+        # running in parallel almost every step would otherwise resend one.
+        if agent in self.agent_status and self.agent_status[agent] != status:
             self.agent_status[agent] = status
             yield RunEvent("agent_status", {"agent": agent, "status": status})
 
     def _section_event(self, section: str, content: str) -> Iterator[RunEvent]:
         # Full replacement, not append — same semantics as update_report_section.
-        if section in self.report_sections:
+        # Every full-state step carries the sections filed so far; resending one
+        # that has not changed would only make the consumer repaint it.
+        if section in self.report_sections and self.report_sections[section] != content:
             self.report_sections[section] = content
             yield RunEvent("report_section", {"section": section, "content": content})
 
@@ -312,8 +316,14 @@ class AnalysisSession:
         yield RunEvent("message", {"role": role, "content": content})
 
     def _research_team_event(self, status: str) -> Iterator[RunEvent]:
-        """Move all research team members (not the Trader) to ``status``."""
+        """Move all research team members (not the Trader) to ``status``.
+
+        Later steps carry the same debate state again; a finished member is not
+        started a second time.
+        """
         for agent in RESEARCH_TEAM:
+            if status == "in_progress" and self.agent_status.get(agent) == "completed":
+                continue
             yield from self._agent_event(agent, status)
 
     # ------------------------------------------------------------------
@@ -387,20 +397,24 @@ class AnalysisSession:
         # Only move statuses once there is actual content.
         if bull_hist or bear_hist:
             yield from self._research_team_event("in_progress")
-        if bull_hist:
-            yield from self._section_event(
-                "investment_plan", f"### Bull Researcher Analysis\n{bull_hist}"
-            )
-        if bear_hist:
-            yield from self._section_event(
-                "investment_plan", f"### Bear Researcher Analysis\n{bear_hist}"
-            )
+
+        # The section shows the latest voice: the manager's decision once it is
+        # in, else the bear's case, else the bull's.
         if judge:
             yield from self._section_event(
                 "investment_plan", f"### Research Manager Decision\n{judge}"
             )
             yield from self._research_team_event("completed")
-            yield from self._agent_event("Trader", "in_progress")
+            if self.agent_status.get("Trader") == "pending":
+                yield from self._agent_event("Trader", "in_progress")
+        elif bear_hist:
+            yield from self._section_event(
+                "investment_plan", f"### Bear Researcher Analysis\n{bear_hist}"
+            )
+        elif bull_hist:
+            yield from self._section_event(
+                "investment_plan", f"### Bull Researcher Analysis\n{bull_hist}"
+            )
 
     def _trading_events(self, chunk: dict) -> Iterator[RunEvent]:
         if not chunk.get("trader_investment_plan"):
@@ -421,33 +435,38 @@ class AnalysisSession:
         neu_hist = risk_state.get("neutral_history", "").strip()
         judge = (chunk.get("final_trade_decision") or "").strip()
 
-        if agg_hist:
-            if self.agent_status.get("Aggressive Analyst") != "completed":
-                yield from self._agent_event("Aggressive Analyst", "in_progress")
-            yield from self._section_event(
-                "final_trade_decision", f"### Aggressive Analyst Analysis\n{agg_hist}"
-            )
-        if con_hist:
-            if self.agent_status.get("Conservative Analyst") != "completed":
-                yield from self._agent_event("Conservative Analyst", "in_progress")
-            yield from self._section_event(
-                "final_trade_decision", f"### Conservative Analyst Analysis\n{con_hist}"
-            )
-        if neu_hist:
-            if self.agent_status.get("Neutral Analyst") != "completed":
-                yield from self._agent_event("Neutral Analyst", "in_progress")
+        for agent, history in (
+            ("Aggressive Analyst", agg_hist),
+            ("Conservative Analyst", con_hist),
+            ("Neutral Analyst", neu_hist),
+        ):
+            if history and self.agent_status.get(agent) == "pending":
+                yield from self._agent_event(agent, "in_progress")
+
+        # The section shows the latest voice: the Portfolio Manager's decision
+        # once it is in, else the last risk analyst to have spoken.
+        if judge:
+            if self.agent_status.get("Portfolio Manager") != "completed":
+                yield from self._agent_event("Portfolio Manager", "in_progress")
+                yield from self._section_event(
+                    "final_trade_decision", f"### Portfolio Manager Decision\n{judge}"
+                )
+                yield from self._agent_event("Aggressive Analyst", "completed")
+                yield from self._agent_event("Conservative Analyst", "completed")
+                yield from self._agent_event("Neutral Analyst", "completed")
+                yield from self._agent_event("Portfolio Manager", "completed")
+        elif neu_hist:
             yield from self._section_event(
                 "final_trade_decision", f"### Neutral Analyst Analysis\n{neu_hist}"
             )
-        if judge and self.agent_status.get("Portfolio Manager") != "completed":
-            yield from self._agent_event("Portfolio Manager", "in_progress")
+        elif con_hist:
             yield from self._section_event(
-                "final_trade_decision", f"### Portfolio Manager Decision\n{judge}"
+                "final_trade_decision", f"### Conservative Analyst Analysis\n{con_hist}"
             )
-            yield from self._agent_event("Aggressive Analyst", "completed")
-            yield from self._agent_event("Conservative Analyst", "completed")
-            yield from self._agent_event("Neutral Analyst", "completed")
-            yield from self._agent_event("Portfolio Manager", "completed")
+        elif agg_hist:
+            yield from self._section_event(
+                "final_trade_decision", f"### Aggressive Analyst Analysis\n{agg_hist}"
+            )
 
     def translate_step(self, messages: Iterable[Any], chunk: dict | None) -> Iterator[RunEvent]:
         """Translate one ``stream_run`` step into events, in CLI-equivalent order.

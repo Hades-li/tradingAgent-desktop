@@ -237,6 +237,22 @@ class TestMain(unittest.TestCase):
         self.assertEqual(events[0]["code"], "cancelled")
         self.assertTrue(events[0]["recoverable"])
 
+    def test_a_run_that_will_not_unwind_is_cancelled_by_the_grace_timer(self):
+        import threading
+
+        # A run blocked in cleanup never reaches the `except _Cancelled`; the
+        # timer started by the signal handler must still report and exit, and
+        # the two paths together must report exactly once.
+        with CaptureProtocol() as captured, mock.patch("os._exit") as hard_exit:
+            ipc_main._cancel_reported = False
+            threading.Timer(0, ipc_main._finish_cancelled).start()
+            for thread in threading.enumerate():
+                if isinstance(thread, threading.Timer):
+                    thread.join(timeout=2)
+            ipc_main._finish_cancelled()
+        self.assertEqual(hard_exit.call_count, 1)
+        self.assertEqual([e["code"] for e in captured.events], ["cancelled"])
+
     def test_run_failure_emits_error_and_exits_nonzero(self):
         def explode(_request):
             raise RuntimeError("provider exploded")

@@ -18,6 +18,7 @@ from __future__ import annotations
 import json
 import os
 import sys
+import threading
 import traceback
 from typing import Any
 
@@ -32,6 +33,35 @@ class _Cancelled(BaseException):
     an ``Exception`` subclass gets swallowed and the run simply carries on —
     the user presses 停止 and keeps paying for tokens.
     """
+
+
+# How long a cancelled run may take to unwind before the process exits anyway.
+# The analysts run on worker threads, and LangGraph's own cleanup waits for every
+# call still in flight, which can be a minute for a slow model; the desktop client
+# gives up and sends SIGKILL after five seconds, well before that.
+CANCEL_GRACE_SECONDS = 2.0
+
+_cancel_lock = threading.Lock()
+_cancel_reported = False
+
+
+def _finish_cancelled() -> None:
+    """Report the cancellation once, then leave the process for good.
+
+    Reached from the main thread when the run has unwound, or from the grace
+    timer when it has not; whichever comes first wins.
+    """
+    global _cancel_reported
+    with _cancel_lock:
+        if _cancel_reported:
+            return
+        _cancel_reported = True
+        emit_error("run cancelled", recoverable=True, code="cancelled")
+        sys.stderr.flush()
+        # LangGraph leaves non-daemon worker threads behind, and a normal
+        # return would block in threading._shutdown until the in-flight LLM
+        # call completes — well past the caller's SIGKILL deadline.
+        os._exit(0)
 
 
 def _protect_stdout() -> None:
@@ -191,7 +221,13 @@ def main(argv: list[str] | None = None) -> int:
     argv = list(sys.argv if argv is None else argv)
     _protect_stdout()
 
+    global _cancel_reported
+    _cancel_reported = False
+
     def _cancel(signum, frame):  # noqa: ARG001 - signal handler signature
+        timer = threading.Timer(CANCEL_GRACE_SECONDS, _finish_cancelled)
+        timer.daemon = True
+        timer.start()
         raise _Cancelled
 
     # Default SIGTERM would kill the process outright, skipping the session's
@@ -212,13 +248,8 @@ def main(argv: list[str] | None = None) -> int:
             return 0
         return run_command(request)
     except _Cancelled:
-        emit_error("run cancelled", recoverable=True, code="cancelled")
         # The run's finally blocks have already torn the checkpointer down.
-        # LangGraph leaves non-daemon worker threads behind, and a normal
-        # return would block in threading._shutdown until the in-flight LLM
-        # call completes — well past the caller's SIGKILL deadline.
-        sys.stderr.flush()
-        os._exit(0)
+        _finish_cancelled()
     except Exception as exc:  # noqa: BLE001 - report, then exit non-zero
         traceback.print_exc()
         emit_error(f"{type(exc).__name__}: {exc}")
