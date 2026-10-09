@@ -67,6 +67,67 @@
 
 ---
 
+## 0''. 升级到 TradingAgents 0.6.0（2026-10-09）
+
+内置引擎从 0.4.0 升到 0.6.0（经 0.5.0 / 0.5.1 / 0.5.2）。下文第 1 节起的文件路径、
+行号与 `cli/main.py` 的引用均基于 0.4.0，**以本节为准**。
+
+**做法**：不 merge（本地与上游无共同历史），而是分提交——先把上游 v0.6.0 原样导入
+（提交 `Import TradingAgents 0.6.0 unmodified`），再单独提交适配。以后升级照此办理，
+`git diff` 能一眼看出哪些是上游、哪些是我们的。本地专有文件只有：
+`tradingagents/{session,ipc_main,asset_type}.py`、`tradingagents/PROTOCOL.md`、
+`tests/test_{ipc_main,session_events}.py`、`scripts/build-sidecar.sh`、
+`scripts/sidecar_entry.py`、`desktop/`、`docs/`、`.github/` 与 `pyproject.toml` 的
+ruff 排除项。
+
+**与第 2 步（CLI 改用 session）的偏差**：`cli/` 现在是上游原版，不再与桌面端共用
+`session.py`。上游已把 CLI 拆成 `cli/{run,display,prompts,selections,...}.py`，
+继续共用只会让每次升级都撞上冲突。代价是流翻译逻辑有两份（CLI 一份、`session.py`
+一份），升级时对照上游 `cli/run.py` 的消费循环更新后者即可。
+
+适配点（均已完成并实跑验证）：
+
+1. **分析师并行**。`analyst_execution` 里的耗时统计与初始节点已被上游删除，
+   `session.py` 自带 `AnalystWallTime`。全部分析师在 `run_started` 后同时 `in_progress`，
+   各自报告落地时 `completed`，最慢者完成后 Bull Researcher 开始。事件契约（v1）
+   不变，前端零改动；`PROTOCOL.md` 补了一段说明。
+2. **流式接口**。改用 `graph.stream_run(...)`（产出 `(messages, state)`，子图步骤的
+   `state` 为 `None`），否则工具拿不到本次运行的配置。初始状态用 `create_run_state`，
+   评级用 `run_rating`（`process_signal` 已移除），收尾调用 `record_decision` 写
+   决策日志。辩论裁决字段变了：研究经理是 `investment_plan`、投资组合经理是
+   `final_trade_decision`（`judge_decision` 已移除）。
+3. **取消变慢（最严重，计划里没有预见）**。并行后分析师跑在工作线程里，LangGraph
+   清理时会等所有在途调用返回，`SIGTERM` 实测 48 秒才退出，远超桌面端 5 秒的
+   SIGKILL 宽限。现在信号处理器同时启动 2 秒定时器（`CANCEL_GRACE_SECONDS`），
+   到点仍未退出就直接上报 `cancelled` 并 `os._exit(0)`；两条路径共用一把锁，只上报一次。
+   实测 2.0 秒。
+4. **重复事件**。上游每个整状态步骤都会带上此前所有字段，旧逻辑会让已完成的研究员
+   反复回到 `in_progress`、相同报告反复重发（一次两分析师的运行约 170 个事件里大半
+   是重复）。`_agent_event` / `_section_event` 现在只在值变化时发事件。
+5. **`detect_asset_type` 仍须留在核心**。上游把它放进了 `cli/prompts.py`；打包后的
+   引擎不能 import `cli`，所以放在我们自己的 `tradingagents/asset_type.py`，不去改
+   上游文件。
+6. **报告落盘**改用 `graph.save_reports(...)`，报告头会写入模型、数据源等运行设置，
+   并同时生成 `complete_report.html`。历史页暂未展示 HTML（本次只做升级）。
+7. **打包**。`langchain` / `langchain_community` 不再是依赖，从 `--collect-all`
+   中移除；新增 `--collect-data tradingagents`，否则 HTML 报告读不到
+   `assets/tauric-logo.svg`。sidecar 从 140MB 降到 116MB。
+8. **依赖**：Python ≥ 3.11、pandas 3、langchain/langgraph 1.x。`.venv` 已重建，
+   `.github/workflows/ci.yml` 的矩阵改为 3.11–3.14（并带上上游的时区用例）。
+9. **桌面端默认财报数据源**改为上游的 `sec_edgar,yfinance`。已保存过设置的用户
+   保留原值（设置文件按键合并），需要手动改。
+10. 0.5.2 及更早的断点不会被续跑，升级后第一次遇到"恢复上次运行"会从头开始。
+
+验证：pytest **1300 passed**（上游 1259 条 + 我们的 41 条），前端 30 条 vitest 与
+类型检查通过；开发态两分析师（market + news）实跑完成、评级 Overweight、报告落盘；
+打包态 sidecar 开启断点续跑实跑完成；`.app` 内置 sidecar 的 `options` 正常。
+
+已知遗留：`tests/test_cache_writes.py` 有 3 条 Windows 锁用例在 macOS 上失败
+（`errno.EDEADLOCK` 在 macOS 不存在），是上游测试的平台问题，与本项目无关，
+Windows CI 上不受影响。
+
+---
+
 ## 0. 环境重建（第一件事）
 
 旧 `.venv` 故意没拷贝 —— 它内含指向旧路径的 editable 安装，拷过来会导致
