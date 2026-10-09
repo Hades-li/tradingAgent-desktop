@@ -1,8 +1,8 @@
 """The shared session must translate graph chunks into the documented events.
 
-These cover the invariants the desktop client and the CLI both depend on:
-message de-duplication under ``stream_mode="values"``, full-replacement report
-sections, status transitions and checkpoint teardown.
+These cover the invariants the desktop client depends on: message
+de-duplication across ``stream_run`` steps, full-replacement report sections,
+parallel analyst status transitions and checkpoint teardown.
 """
 
 import unittest
@@ -23,35 +23,31 @@ class FakeMessage:
 
 
 class FakePropagator:
-    def create_initial_state(self, *args, **kwargs):
-        return {"messages": []}
-
     def get_graph_args(self, callbacks=None):
-        return {"stream_mode": "values", "config": {"recursion_limit": 100}}
-
-
-class FakeInnerGraph:
-    def __init__(self, chunks):
-        self.chunks = chunks
-        self.stream_calls = []
-
-    def stream(self, graph_input, **kwargs):
-        self.stream_calls.append((graph_input, kwargs))
-        yield from self.chunks
+        return {"config": {"recursion_limit": 100}}
 
 
 class FakeGraph:
-    """Minimal stand-in for TradingAgentsGraph's streaming surface."""
+    """Minimal stand-in for TradingAgentsGraph's streaming surface.
 
-    def __init__(self, chunks, thread_id=None):
-        self.graph = FakeInnerGraph(chunks)
+    ``steps`` are the run's states, each streamed as ``(messages, state)`` the way
+    ``stream_run`` does. A step given as a ``(messages, None)`` tuple stands for a
+    step inside an analyst's own graph, which carries messages only.
+    """
+
+    def __init__(self, steps, thread_id=None):
+        self.steps = steps
         self.propagator = FakePropagator()
         self.thread_id = thread_id
+        self.stream_calls = []
+        self.run_states = []
+        self.recorded = []
         self.ended = 0
         self.cleared = 0
 
-    def resolve_instrument_context(self, ticker, asset_type="stock"):
-        return f"{ticker}/{asset_type}"
+    def create_run_state(self, ticker, trade_date, asset_type="stock", portfolio=None):
+        self.run_states.append((ticker, trade_date, asset_type))
+        return {"messages": []}
 
     def begin_checkpoint(self, *args, **kwargs):
         return self.thread_id
@@ -59,14 +55,22 @@ class FakeGraph:
     def checkpoint_input(self, init_state):
         return init_state
 
+    def stream_run(self, graph_input, **kwargs):
+        self.stream_calls.append((graph_input, kwargs))
+        for step in self.steps:
+            if isinstance(step, tuple):
+                yield step
+            else:
+                yield step.get("messages", []), step
+
+    def record_decision(self, ticker, trade_date, final_state):
+        self.recorded.append((ticker, trade_date, dict(final_state)))
+
     def clear_checkpoint_on_success(self, *args, **kwargs):
         self.cleared += 1
 
     def end_checkpoint(self):
         self.ended += 1
-
-    def process_signal(self, decision):
-        return "Buy"
 
 
 def build_session(chunks, analysts=("market",), **kwargs):
@@ -108,7 +112,7 @@ class TestRunEvent(unittest.TestCase):
 
 class TestSessionEvents(unittest.TestCase):
     def test_run_starts_and_finishes(self):
-        session = build_session([{"messages": [], "final_trade_decision": "**Rating**: Buy"}])
+        session = build_session([{"messages": [], "final_trade_decision": "Rating: Buy"}])
         events = list(session.run())
 
         self.assertEqual(events[0].type, "run_started")
@@ -123,7 +127,7 @@ class TestSessionEvents(unittest.TestCase):
         self.assertFalse(finished.data["isReview"])
 
     def test_messages_are_deduplicated_across_chunks(self):
-        # stream_mode="values" re-sends the whole accumulated message list.
+        # A full-state step re-sends the whole accumulated message list.
         msg = FakeMessage("hello", msg_id="m1")
         second = FakeMessage("world", msg_id="m2")
         session = build_session([{"messages": [msg]}, {"messages": [msg, second]}])
@@ -182,8 +186,8 @@ class TestSessionEvents(unittest.TestCase):
                     "investment_debate_state": {
                         "bull_history": "bull",
                         "bear_history": "bear",
-                        "judge_decision": "go long",
                     },
+                    "investment_plan": "go long",
                 }
             ]
         )
@@ -193,10 +197,12 @@ class TestSessionEvents(unittest.TestCase):
         self.assertIn(("Trader", "in_progress"), statuses)
 
         # investment_plan is replaced, not appended: the judge decision wins.
-        self.assertEqual(
-            session.report_sections["investment_plan"],
-            "### Research Manager Decision\ngo long",
-        )
+        plans = [
+            e.data["content"]
+            for e in events
+            if e.type == "report_section" and e.data["section"] == "investment_plan"
+        ]
+        self.assertEqual(plans[-2], "### Research Manager Decision\ngo long")
 
     def test_final_state_merges_chunks_and_all_agents_complete(self):
         session = build_session(
@@ -213,7 +219,7 @@ class TestSessionEvents(unittest.TestCase):
     def test_checkpoint_thread_id_injected_and_torn_down(self):
         session = build_session([{"messages": []}], thread_id="tid-42")
         list(session.run())
-        _, kwargs = session.graph.graph.stream_calls[0]
+        _, kwargs = session.graph.stream_calls[0]
         self.assertEqual(kwargs["config"]["configurable"]["thread_id"], "tid-42")
         self.assertEqual(session.graph.ended, 1)
         self.assertEqual(session.graph.cleared, 1)
@@ -231,20 +237,74 @@ class TestSessionEvents(unittest.TestCase):
         self.assertEqual(session.graph.cleared, 0)
 
     def test_unparseable_decision_flags_review(self):
-        class ReviewGraph(FakeGraph):
-            def process_signal(self, decision):
-                return "REVIEW"
-
-        session = AnalysisSession(
-            "NVDA",
-            "2026-01-02",
-            ["market"],
-            config={},
-            graph=ReviewGraph([{"messages": [], "final_trade_decision": "???"}]),
-        )
+        session = build_session([{"messages": [], "final_trade_decision": "???"}])
         finished = list(session.run())[-1]
         self.assertEqual(finished.data["signal"], "REVIEW")
         self.assertTrue(finished.data["isReview"])
+
+    def test_every_selected_analyst_starts_together(self):
+        session = build_session([{"messages": []}], analysts=("market", "news"))
+        started = [
+            e.data["agent"]
+            for e in session.run()
+            if e.type == "agent_status" and e.data["status"] == "in_progress"
+        ]
+        self.assertEqual(started[:2], ["Market Analyst", "News Analyst"])
+
+    def test_research_waits_for_the_slowest_analyst(self):
+        session = build_session(
+            [{"messages": [], "market_report": "# MKT"}, {"messages": [], "news_report": "# NEWS"}],
+            analysts=("market", "news"),
+        )
+        order = []
+        for event in session.run():
+            if event.type == "agent_status":
+                order.append((event.data["agent"], event.data["status"]))
+        first_bull = order.index(("Bull Researcher", "in_progress"))
+        self.assertLess(order.index(("Market Analyst", "completed")), first_bull)
+        self.assertLess(order.index(("News Analyst", "completed")), first_bull)
+        self.assertNotIn(
+            ("Bull Researcher", "in_progress"),
+            order[: order.index(("News Analyst", "completed"))],
+        )
+
+    def test_a_step_inside_an_analyst_graph_carries_messages_only(self):
+        inner = ([FakeMessage("fetching", msg_id="a1")], None)
+        session = build_session([inner, {"messages": [], "market_report": "# MKT"}])
+        events = list(session.run())
+        texts = [e.data["content"] for e in events if e.type == "message"]
+        self.assertIn("fetching", texts)
+        self.assertEqual(
+            [e.data["section"] for e in events if e.type == "report_section"][0], "market_report"
+        )
+
+    def test_decision_is_recorded_once_a_run_finishes(self):
+        session = build_session([{"messages": [], "final_trade_decision": "Rating: Buy"}])
+        list(session.run())
+        self.assertEqual(len(session.graph.recorded), 1)
+        ticker, date, state = session.graph.recorded[0]
+        self.assertEqual((ticker, date), ("NVDA", "2026-01-02"))
+        self.assertEqual(state["final_trade_decision"], "Rating: Buy")
+
+    def test_failed_run_records_nothing(self):
+        def exploding():
+            yield {"messages": []}
+            raise RuntimeError("boom")
+
+        session = build_session(exploding())
+        with self.assertRaises(RuntimeError):
+            list(session.run())
+        self.assertEqual(session.graph.recorded, [])
+
+    def test_wall_time_summary_names_each_finished_analyst(self):
+        session = build_session([{"messages": [], "market_report": "# MKT"}])
+        summary = [
+            e.data["content"]
+            for e in session.run()
+            if e.type == "message" and e.data["content"].startswith("Analyst wall time")
+        ]
+        self.assertEqual(len(summary), 1)
+        self.assertIn("Market ", summary[0])
 
     def test_completed_reports_count_requires_finalizing_agent(self):
         session = build_session([{"messages": []}])

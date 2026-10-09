@@ -14,19 +14,8 @@ from tradingagents import ipc_main
 
 
 class FakePropagator:
-    def create_initial_state(self, *args, **kwargs):
-        return {"messages": []}
-
     def get_graph_args(self, callbacks=None):
-        return {"stream_mode": "values", "config": {"recursion_limit": 100}}
-
-
-class FakeInnerGraph:
-    def __init__(self, chunks):
-        self.chunks = chunks
-
-    def stream(self, graph_input, **kwargs):
-        yield from self.chunks
+        return {"config": {"recursion_limit": 100}}
 
 
 class FakeGraph:
@@ -35,12 +24,11 @@ class FakeGraph:
     chunks = [{"messages": [], "market_report": "# MKT", "final_trade_decision": "Rating: Buy"}]
 
     def __init__(self, *args, **kwargs):
-        self.graph = FakeInnerGraph(self.chunks)
         self.propagator = FakePropagator()
 
-    def resolve_instrument_context(self, ticker, asset_type="stock"):
+    def create_run_state(self, ticker, trade_date, asset_type="stock", portfolio=None):
         print("noisy data-layer progress line")
-        return ticker
+        return {"messages": []}
 
     def begin_checkpoint(self, *args, **kwargs):
         return None
@@ -48,14 +36,23 @@ class FakeGraph:
     def checkpoint_input(self, init_state):
         return init_state
 
+    def stream_run(self, graph_input, **kwargs):
+        for chunk in self.chunks:
+            yield chunk.get("messages", []), chunk
+
+    def record_decision(self, *args, **kwargs):
+        pass
+
     def clear_checkpoint_on_success(self, *args, **kwargs):
         pass
 
     def end_checkpoint(self):
         pass
 
-    def process_signal(self, decision):
-        return "Buy"
+    def save_reports(self, final_state, ticker, save_path=None, html=True):
+        from tradingagents.reporting import write_report_tree
+
+        return write_report_tree(final_state, ticker, save_path, html=html)
 
 
 class CaptureProtocol:
@@ -145,7 +142,7 @@ class TestRunCommand(unittest.TestCase):
         self.assertEqual(sections[0]["section"], "market_report")
 
     def test_stray_prints_never_reach_the_protocol_stream(self):
-        # FakeGraph.resolve_instrument_context prints, mimicking y_finance.py.
+        # FakeGraph.create_run_state prints, mimicking the Yahoo vendor modules.
         real_stdout = sys.stdout
         noise = io.StringIO()
         try:

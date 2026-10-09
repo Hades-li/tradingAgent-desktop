@@ -1,17 +1,15 @@
-"""Headless analysis session shared by the CLI and the desktop sidecar.
+"""Headless analysis session for the desktop sidecar.
 
-:class:`AnalysisSession` drives ``TradingAgentsGraph.graph.stream(...)`` and
-translates every LangGraph chunk into a flat stream of :class:`RunEvent`
-objects. It owns the whole run lifecycle: initial state, checkpoint setup and
-teardown, message de-duplication, agent-status transitions and report-section
-updates.
+:class:`AnalysisSession` drives ``TradingAgentsGraph.stream_run(...)`` and
+translates every ``(messages, state)`` step into a flat stream of
+:class:`RunEvent` objects. It owns the whole run lifecycle: initial state,
+checkpoint setup and teardown, message de-duplication, agent-status transitions
+and report-section updates.
 
-Two consumers exist:
-
-* ``cli/main.py`` — applies the events to its ``MessageBuffer`` and repaints
-  the rich dashboard.
-* ``tradingagents.ipc_main`` — serialises the events to stdout as JSON Lines
-  for the Electron desktop client.
+The only consumer is ``tradingagents.ipc_main``, which serialises the events to
+stdout as JSON Lines for the Electron desktop client. The upstream CLI
+(``cli/``) runs its own copy of this translation and is deliberately left
+untouched, so an upstream upgrade never has to merge it with this module.
 
 The event stream is the contract; see ``tradingagents/PROTOCOL.md``. Anything
 that changes the shape of an event must bump ``PROTOCOL_VERSION`` there and
@@ -20,17 +18,13 @@ here in lockstep.
 
 from __future__ import annotations
 
+import time
 import uuid
 from collections.abc import Iterable, Iterator
 from dataclasses import dataclass, field
 from typing import Any
 
-from tradingagents.graph.analyst_execution import (
-    AnalystWallTimeTracker,
-    build_analyst_execution_plan,
-    get_initial_analyst_node,
-    sync_analyst_tracker_from_chunk,
-)
+from tradingagents.agents.rating import is_review, run_rating
 from tradingagents.graph.trading_graph import TradingAgentsGraph
 
 # Bumped whenever the wire shape of a RunEvent changes. Consumers must reject
@@ -94,6 +88,38 @@ SECTION_TITLES: dict[str, str] = {
 }
 
 RESEARCH_TEAM: list[str] = FIXED_AGENTS["Research Team"]
+
+
+class AnalystWallTime:
+    """Wall-clock time each analyst took, from run start to its report filing.
+
+    The analysts run in parallel, so every one starts together and finishes when
+    its own report lands.
+    """
+
+    def __init__(self, analyst_keys: Iterable[str]):
+        self._keys = list(analyst_keys)
+        self._started_at: float | None = None
+        self._elapsed: dict[str, float] = {}
+
+    def start(self) -> None:
+        if self._started_at is None:
+            self._started_at = time.monotonic()
+
+    def finish(self, analyst_key: str) -> None:
+        if self._started_at is None or analyst_key in self._elapsed:
+            return
+        self._elapsed[analyst_key] = max(0.0, time.monotonic() - self._started_at)
+
+    def format_summary(self) -> str:
+        parts = [
+            f"{ANALYST_MAPPING[key].removesuffix(' Analyst')} {self._elapsed[key]:.2f}s"
+            for key in self._keys
+            if key in self._elapsed
+        ]
+        if not parts:
+            return "Analyst wall time: pending"
+        return "Analyst wall time: " + " | ".join(parts)
 
 
 @dataclass(frozen=True)
@@ -221,8 +247,7 @@ class AnalysisSession:
         self.run_id = run_id or uuid.uuid4().hex
         self.callbacks = list(callbacks) if callbacks else []
         self.selected_analysts = normalize_analysts(selected_analysts)
-        self.execution_plan = build_analyst_execution_plan(self.selected_analysts)
-        self.wall_time_tracker = AnalystWallTimeTracker(self.execution_plan)
+        self.wall_time_tracker = AnalystWallTime(self.selected_analysts)
         self.graph = graph if graph is not None else TradingAgentsGraph(
             self.selected_analysts,
             config=config,
@@ -297,14 +322,10 @@ class AnalysisSession:
     def _analyst_status_events(self, chunk: dict) -> Iterator[RunEvent]:
         """Derive analyst statuses from accumulated report state.
 
-        - Store new report content present in this chunk
-        - Analysts with a report are completed
-        - The first analyst without one is in_progress, the rest pending
-        - Once every analyst is done, the Bull Researcher starts
+        The analysts run together: each is in progress until its own report
+        lands. Once every selected analyst has filed, the Bull Researcher starts.
         """
-        found_active = False
-        sync_analyst_tracker_from_chunk(self.wall_time_tracker, chunk)
-
+        all_filed = True
         for analyst_key in ANALYST_ORDER:
             if analyst_key not in self.selected_analysts:
                 continue
@@ -316,31 +337,27 @@ class AnalysisSession:
                 yield from self._section_event(report_key, chunk[report_key])
 
             # Status comes from accumulated sections, not just this chunk.
-            has_report = bool(self.report_sections.get(report_key))
-
-            if has_report:
+            if self.report_sections.get(report_key):
+                self.wall_time_tracker.finish(analyst_key)
                 yield from self._agent_event(agent_name, "completed")
-            elif not found_active:
-                yield from self._agent_event(agent_name, "in_progress")
-                found_active = True
             else:
-                yield from self._agent_event(agent_name, "pending")
+                yield from self._agent_event(agent_name, "in_progress")
+                all_filed = False
 
         if (
-            not found_active
+            all_filed
             and self.selected_analysts
             and self.agent_status.get("Bull Researcher") == "pending"
         ):
             yield from self._agent_event("Bull Researcher", "in_progress")
 
-    def _message_events(self, chunk: dict) -> Iterator[RunEvent]:
+    def _message_events(self, messages: Iterable[Any]) -> Iterator[RunEvent]:
         """Emit message/tool_call events, de-duplicated by message id.
 
-        ``stream_mode="values"`` hands back the full accumulated message list on
-        every chunk, so without the id set every message would be re-emitted
-        once per chunk.
+        The run's full-state steps repeat the messages before them, so without
+        the id set every message would be re-emitted once per step.
         """
-        for message in chunk.get("messages", []):
+        for message in messages:
             msg_id = getattr(message, "id", None)
             if msg_id is not None:
                 if msg_id in self._processed_message_ids:
@@ -365,7 +382,7 @@ class AnalysisSession:
             return
         bull_hist = debate_state.get("bull_history", "").strip()
         bear_hist = debate_state.get("bear_history", "").strip()
-        judge = debate_state.get("judge_decision", "").strip()
+        judge = (chunk.get("investment_plan") or "").strip()
 
         # Only move statuses once there is actual content.
         if bull_hist or bear_hist:
@@ -402,7 +419,7 @@ class AnalysisSession:
         agg_hist = risk_state.get("aggressive_history", "").strip()
         con_hist = risk_state.get("conservative_history", "").strip()
         neu_hist = risk_state.get("neutral_history", "").strip()
-        judge = risk_state.get("judge_decision", "").strip()
+        judge = (chunk.get("final_trade_decision") or "").strip()
 
         if agg_hist:
             if self.agent_status.get("Aggressive Analyst") != "completed":
@@ -432,9 +449,15 @@ class AnalysisSession:
             yield from self._agent_event("Neutral Analyst", "completed")
             yield from self._agent_event("Portfolio Manager", "completed")
 
-    def translate_chunk(self, chunk: dict) -> Iterator[RunEvent]:
-        """Translate one LangGraph chunk into events, in CLI-equivalent order."""
-        yield from self._message_events(chunk)
+    def translate_step(self, messages: Iterable[Any], chunk: dict | None) -> Iterator[RunEvent]:
+        """Translate one ``stream_run`` step into events, in CLI-equivalent order.
+
+        ``chunk`` is None for a step inside an analyst's own graph, which carries
+        messages only; otherwise it is the run's state, or an analyst's report.
+        """
+        yield from self._message_events(messages)
+        if chunk is None:
+            return
         yield from self._analyst_status_events(chunk)
         yield from self._research_events(chunk)
         yield from self._trading_events(chunk)
@@ -443,20 +466,6 @@ class AnalysisSession:
     # ------------------------------------------------------------------
     # Lifecycle
     # ------------------------------------------------------------------
-    def _initial_state(self) -> dict:
-        # Resolve the instrument identity once so every agent anchors to the
-        # same company (#814); the streaming path builds state directly instead
-        # of going through propagate().
-        instrument_context = self.graph.resolve_instrument_context(
-            self.ticker, self.asset_type
-        )
-        return self.graph.propagator.create_initial_state(
-            self.ticker,
-            self.analysis_date,
-            asset_type=self.asset_type,
-            instrument_context=instrument_context,
-        )
-
     def run(self) -> Iterator[RunEvent]:
         """Execute the graph, yielding events until the run finishes."""
         yield RunEvent(
@@ -470,11 +479,17 @@ class AnalysisSession:
             },
         )
 
-        first_analyst = get_initial_analyst_node(self.execution_plan)
-        yield from self._agent_event(first_analyst, "in_progress")
-        self.wall_time_tracker.mark_started(self.selected_analysts[0])
+        # The analysts start together.
+        self.wall_time_tracker.start()
+        for analyst_key in self.selected_analysts:
+            yield from self._agent_event(ANALYST_MAPPING[analyst_key], "in_progress")
 
-        init_agent_state = self._initial_state()
+        # The same initial state propagate() builds, with the resolved
+        # instrument identity; the graph's Memory Log step settles past
+        # decisions and loads their lessons alongside the analysts.
+        init_agent_state = self.graph.create_run_state(
+            self.ticker, self.analysis_date, self.asset_type
+        )
         args = self.graph.propagator.get_graph_args(callbacks=self.callbacks or None)
 
         # Recompile with a checkpointer and inject the thread_id so checkpoint
@@ -493,12 +508,21 @@ class AnalysisSession:
         trace: list[dict] = []
         try:
             graph_input = self.graph.checkpoint_input(init_agent_state)
-            for chunk in self.graph.graph.stream(graph_input, **args):
-                yield from self.translate_chunk(chunk)
-                trace.append(chunk)
+            for messages, chunk in self.graph.stream_run(graph_input, **args):
+                yield from self.translate_step(messages, chunk)
+                if chunk is not None:
+                    trace.append(chunk)
 
-            # Clean run: drop this run's checkpoint so a later run starts
-            # fresh. A mid-stream failure skips this, keeping it for resume.
+            # Streamed chunks are per-node deltas, not full state. Merge them so
+            # every report field populated across the run is present.
+            self.final_state = {}
+            for chunk in trace:
+                self.final_state.update(chunk)
+
+            # Clean run: log the decision, then drop this run's checkpoint so a
+            # later run starts fresh. A mid-stream failure skips both, keeping
+            # the checkpoint for resume.
+            self.graph.record_decision(self.ticker, self.analysis_date, self.final_state)
             self.graph.clear_checkpoint_on_success(
                 self.ticker, self.analysis_date, self.asset_type
             )
@@ -506,15 +530,10 @@ class AnalysisSession:
             # Always restore the plain uncheckpointed graph, even on failure.
             self.graph.end_checkpoint()
 
-        yield from self._finalize(trace)
+        yield from self._finalize()
 
-    def _finalize(self, trace: list[dict]) -> Iterator[RunEvent]:
-        # Streamed chunks are per-node deltas, not full state. Merge them so
-        # every report field populated across the run is present.
-        final_state: dict[str, Any] = {}
-        for chunk in trace:
-            final_state.update(chunk)
-        self.final_state = final_state
+    def _finalize(self) -> Iterator[RunEvent]:
+        final_state = self.final_state
 
         for agent in list(self.agent_status):
             yield from self._agent_event(agent, "completed")
@@ -528,9 +547,8 @@ class AnalysisSession:
             if section in final_state:
                 yield from self._section_event(section, final_state[section])
 
-        # Deterministic parse of the PM decision — no extra LLM call (#1170).
-        decision = final_state.get("final_trade_decision") or ""
-        self.signal = self.graph.process_signal(decision) if decision else None
+        # The Portfolio Manager's own rating, never one its thesis quotes (#1383).
+        self.signal = run_rating(final_state) if final_state.get("final_trade_decision") else None
         yield RunEvent(
             "run_finished",
             {
@@ -543,6 +561,4 @@ class AnalysisSession:
 
 def is_review_signal(signal: str | None) -> bool:
     """True when the run produced no parseable 5-tier rating."""
-    from tradingagents.agents.utils.rating import is_review
-
     return signal is None or is_review(signal)

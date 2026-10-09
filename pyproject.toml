@@ -68,7 +68,9 @@ filterwarnings = [
 [tool.ruff]
 line-length = 100
 target-version = "py311"
-extend-exclude = ["results"]
+# desktop/build holds the PyInstaller bundle, which vendors thousands of
+# third-party .py files; linting them is meaningless and drowns real findings.
+extend-exclude = ["results", "desktop/build", "desktop/out", "desktop/release"]
 
 [tool.ruff.lint]
 # Standard "good defaults" rule set (pyflakes + pycodestyle + isort + bugbear +

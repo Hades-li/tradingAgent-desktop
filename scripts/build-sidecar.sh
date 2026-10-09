@@ -46,6 +46,11 @@ mkdir -p "$outdir"
 # analysis misses them. A missing module here is the single most common
 # packaging failure.
 #
+# --collect-data tradingagents ships tradingagents/assets/*.svg: the HTML report
+# reads the logo from the package at import time, so without it saving a report
+# fails inside the bundle. langchain / langchain_community are no longer
+# dependencies as of TradingAgents 0.6.0.
+#
 # cli/ is deliberately not an entry point, so rich / pygments / typer /
 # questionary fall out of the dependency graph on their own.
 "$python" -m PyInstaller \
@@ -55,18 +60,15 @@ mkdir -p "$outdir"
   --distpath "$outdir" \
   --workpath "$work" \
   --specpath "$work" \
-  --collect-all langchain \
   --collect-all langchain_core \
-  --collect-all langchain_community \
   --collect-all langchain_openai \
   --collect-all langchain_anthropic \
   --collect-all langchain_google_genai \
   --collect-all langgraph \
-  --collect-all langgraph_checkpoint \
-  --collect-all langgraph_checkpoint_sqlite \
   --collect-all tiktoken \
   --collect-all yfinance \
   --collect-all stockstats \
+  --collect-data tradingagents \
   --hidden-import tradingagents.ipc_main \
   "$here/scripts/sidecar_entry.py"
 

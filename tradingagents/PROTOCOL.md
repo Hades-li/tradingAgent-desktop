@@ -84,6 +84,11 @@ Agent names are display names, grouped for layout as:
 - Risk Management — Aggressive, Neutral, Conservative Analyst
 - Portfolio Management — Portfolio Manager
 
+The selected analysts run in parallel: they all become `in_progress` right
+after `run_started` and each turns `completed` when its own report lands, so
+several can be `in_progress` at once. The Bull Researcher starts when the
+slowest has filed.
+
 Statuses are derived from accumulated state, so an agent can move back to
 `pending`; render the latest value rather than assuming monotonic progress.
 

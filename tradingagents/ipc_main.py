@@ -38,7 +38,7 @@ def _protect_stdout() -> None:
     """Give the protocol a private stdout handle and send stray prints to stderr.
 
     Several data-layer modules ``print()`` progress directly (e.g.
-    ``dataflows/y_finance.py``). Rebinding ``sys.stdout`` once here keeps those
+    the Yahoo vendor modules). Rebinding ``sys.stdout`` once here keeps those
     lines out of the JSON stream without touching call sites, and covers any
     ``print()`` added later.
     """
@@ -147,8 +147,8 @@ def options_payload() -> dict[str, Any]:
 
 def run_command(request: dict[str, Any]) -> int:
     """Execute one analysis run, streaming its events to stdout."""
-    from tradingagents.dataflows.symbol_utils import detect_asset_type, normalize_symbol
-    from tradingagents.reporting import write_report_tree
+    from tradingagents.asset_type import detect_asset_type
+    from tradingagents.dataflows.symbols import normalize_symbol
     from tradingagents.session import AnalysisSession, normalize_analysts
 
     ticker = normalize_symbol(str(request.get("ticker") or "").strip())
@@ -177,7 +177,7 @@ def run_command(request: dict[str, Any]) -> int:
             # Write the same report tree the CLI writes, so the history view
             # reads one directory layout regardless of which client ran it.
             try:
-                report_file = write_report_tree(session.final_state, ticker, save_path)
+                report_file = session.graph.save_reports(session.final_state, ticker, save_path)
                 payload["reportPath"] = str(report_file)
             except Exception as exc:  # noqa: BLE001 - report saving is best effort
                 emit_error(f"failed to save report: {exc}", recoverable=True)

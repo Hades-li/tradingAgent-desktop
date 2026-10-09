@@ -50,7 +50,7 @@ export const DEFAULT_SETTINGS: Settings = {
   dataVendors: {
     core_stock_apis: 'yfinance',
     technical_indicators: 'yfinance',
-    fundamental_data: 'yfinance',
+    fundamental_data: 'sec_edgar,yfinance',
     news_data: 'yfinance',
     macro_data: 'fred',
     prediction_markets: 'polymarket'
