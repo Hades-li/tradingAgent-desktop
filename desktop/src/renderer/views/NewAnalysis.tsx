@@ -60,7 +60,7 @@ interface Props {
 
 export function NewAnalysis({ onStart, busy }: Props): React.JSX.Element {
   const settings = useSettingsStore((state) => state.settings)
-  const [ticker, setTicker] = useState('NVDA')
+  const [ticker, setTicker] = useState('')
   const [date, setDate] = useState(today())
   const [analysts, setAnalysts] = useState<AnalystKey[]>(settings.defaultAnalysts)
   const [rounds, setRounds] = useState(settings.maxDebateRounds)
@@ -72,8 +72,9 @@ export function NewAnalysis({ onStart, busy }: Props): React.JSX.Element {
     () => CRYPTO_SUFFIXES.some((suffix) => ticker.trim().toUpperCase().endsWith(suffix)),
     [ticker]
   )
+  const hasTicker = ticker.trim().length > 0
   const dateValid = /^\d{4}-\d{2}-\d{2}$/.test(date)
-  const valid = ticker.trim().length > 0 && dateValid && analysts.length > 0
+  const valid = hasTicker && dateValid && analysts.length > 0
 
   const toggle = (key: AnalystKey): void =>
     setAnalysts((current) =>
@@ -92,9 +93,12 @@ export function NewAnalysis({ onStart, busy }: Props): React.JSX.Element {
                 id="ticker"
                 value={ticker}
                 placeholder="NVDA / 0700.HK / BTC-USD"
+                autoFocus
                 onChange={(event) => setTicker(event.target.value)}
               />
-              <FieldDescription>已识别为 {isCrypto ? '加密货币' : '股票'}管线</FieldDescription>
+              <FieldDescription>
+                {hasTicker ? `已识别为 ${isCrypto ? '加密货币' : '股票'}管线` : '输入代码后自动识别资产类型'}
+              </FieldDescription>
             </Field>
             <Field data-invalid={!dateValid || undefined}>
               <FieldLabel htmlFor="date">分析日期</FieldLabel>
