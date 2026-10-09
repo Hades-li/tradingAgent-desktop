@@ -13,8 +13,3 @@ results
 eval_results
 Dockerfile
 docker-compose.yml
-node_modules
-desktop/node_modules
-desktop/out
-desktop/build
-desktop/release
