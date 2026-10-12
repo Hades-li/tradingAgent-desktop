@@ -9,6 +9,7 @@ function fixture(): string {
   const older = join(root, 'NVDA_20260908_185608')
   mkdirSync(join(older, '1_analysts'), { recursive: true })
   writeFileSync(join(older, 'complete_report.md'), '# NVDA')
+  writeFileSync(join(older, 'complete_report.html'), '<h1>NVDA</h1>')
   writeFileSync(join(older, '1_analysts', 'market.md'), '# market')
   const newer = join(root, 'BTC-USD_20260909_090000')
   mkdirSync(newer, { recursive: true })
@@ -34,8 +35,15 @@ describe('readReport', () => {
     const root = fixture()
     const detail = readReport(root, 'NVDA_20260908_185608')
     expect(detail?.completeReport).toBe('# NVDA')
+    expect(detail?.completeHtml).toBe('<h1>NVDA</h1>')
     expect(detail?.sections.market_report).toBe('# market')
     expect(detail?.sections.news_report).toBeUndefined()
+  })
+
+  it('leaves the html empty when the run has none', () => {
+    const detail = readReport(fixture(), 'BTC-USD_20260909_090000')
+    expect(detail?.completeReport).toBe('# BTC')
+    expect(detail?.completeHtml).toBeUndefined()
   })
 
   it('returns null for an unknown id', () => {

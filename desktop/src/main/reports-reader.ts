@@ -27,6 +27,8 @@ export interface HistoryEntry {
 
 export interface HistoryDetail extends HistoryEntry {
   completeReport: string
+  /** Self-contained page the engine writes next to the markdown; absent for older runs. */
+  completeHtml?: string
   sections: Partial<Record<SectionKey, string>>
 }
 
@@ -81,7 +83,12 @@ export function readReport(root: string, id: string): HistoryDetail | null {
     const content = read(relative)
     if (content !== undefined) sections[key] = content
   }
-  return { ...entry, completeReport: read('complete_report.md') ?? '', sections }
+  return {
+    ...entry,
+    completeReport: read('complete_report.md') ?? '',
+    completeHtml: read('complete_report.html'),
+    sections
+  }
 }
 
 /** Directory name the sidecar should write this run into. */

@@ -19,6 +19,19 @@ interface HistoryEntry {
 
 interface HistoryDetail extends HistoryEntry {
   completeReport: string
+  completeHtml?: string
+}
+
+function openExternalLinks(event: React.SyntheticEvent<HTMLIFrameElement>): void {
+  const frameDocument = event.currentTarget.contentDocument
+  frameDocument?.addEventListener('click', (click) => {
+    const anchor = (click.target as Element | null)?.closest('a')
+    const href = anchor?.getAttribute('href')
+    if (href && /^https?:/i.test(href)) {
+      click.preventDefault()
+      window.open(href)
+    }
+  })
 }
 
 export function History({ selectedId }: { selectedId: string | null }): React.JSX.Element {
@@ -95,9 +108,20 @@ export function History({ selectedId }: { selectedId: string | null }): React.JS
           </Button>
         )}
       </header>
-      <div className="md flex-1 overflow-y-auto px-6 py-4">
-        {detail && <Markdown remarkPlugins={[remarkGfm]}>{detail.completeReport}</Markdown>}
-      </div>
+      {detail?.completeHtml ? (
+        <iframe
+          key={detail.id}
+          title={`${detail.ticker} 报告`}
+          srcDoc={detail.completeHtml}
+          sandbox="allow-same-origin"
+          onLoad={openExternalLinks}
+          className="min-h-0 w-full flex-1 border-0"
+        />
+      ) : (
+        <div className="md flex-1 overflow-y-auto px-6 py-4">
+          {detail && <Markdown remarkPlugins={[remarkGfm]}>{detail.completeReport}</Markdown>}
+        </div>
+      )}
     </div>
   )
 }
