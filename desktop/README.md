@@ -78,6 +78,19 @@ npx shadcn@latest add <c> --diff <f>  # 升级时对比上游与本地改动
 字体没有采用预设自带的 Geist —— 它没有 CJK 字形，界面是中文，混排会露馅，
 所以 `--font-sans` 保持系统字体栈。
 
+## 多语言
+
+界面文案用 `i18next` + `react-i18next`，渲染进程和主进程共用同一套资源。
+
+- 文案在 `src/shared/locales/<语言代码>/<命名空间>.ts`，首批语言是 `zh-CN`（基准）和 `en`。
+- 引擎协议里的评级、智能体名、报告段名始终是英文标识，显示文字放在 `domain` 命名空间，用 `useDomain()` 取；缺项时显示原文。
+- 设置里的 `uiLanguage` 是界面语言（`system` 跟随系统），与 `outputLanguage`（AI 报告的语言）互相独立。
+- 新增一种语言：
+  1. 复制 `src/shared/locales/en` 为新目录并翻译，在 `index.ts` 导出，如 `fr`。
+  2. 在 `src/shared/i18n/index.ts` 的 `RESOURCES` 里登记，并在 `src/shared/i18n/locales.ts` 的 `LOCALES` 里加一行 `{ code, nativeName }`。
+  3. 运行 `npx vitest run`：`i18n.test.ts` 会检查各语言的 key、占位符是否一致，并扫描渲染进程里残留的写死中文。
+- 复数用 `_one` / `_other` 等后缀，各语言按自己的规则提供。
+
 ## 结构
 
 ```

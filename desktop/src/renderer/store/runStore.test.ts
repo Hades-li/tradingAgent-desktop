@@ -44,6 +44,16 @@ describe('runStore', () => {
     expect(useRunStore.getState().toolCalls).toBe(1)
   })
 
+  it('logs store-originated lines as translation keys, not fixed-language text', () => {
+    apply({ v: 1, type: 'run_finished', runId: 'run-1', signal: 'Underweight', isReview: false })
+    const [started, finished] = useRunStore.getState().log
+    expect(started).toMatchObject({
+      textKey: 'log.started',
+      params: { ticker: 'NVDA', date: '2026-01-02' }
+    })
+    expect(finished).toMatchObject({ textKey: 'log.finished', params: { rating: 'Underweight' } })
+  })
+
   it('records the signal and review flag without interpreting the string', () => {
     apply({ v: 1, type: 'run_finished', runId: 'run-1', signal: 'REVIEW', isReview: true })
     const state = useRunStore.getState()
