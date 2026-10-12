@@ -5,6 +5,7 @@
  * cross into the renderer. See `src/main/keychain.ts`.
  */
 
+import type { UiLanguage } from './i18n/locales'
 import type { AnalystKey } from './protocol'
 
 export interface Settings {
@@ -13,6 +14,8 @@ export interface Settings {
   quickThinkLlm: string
   /** Only meaningful for ollama / openai_compatible; null = provider default. */
   backendUrl: string | null
+  /** Language of the app itself; `outputLanguage` is what the analysis reports are written in. */
+  uiLanguage: UiLanguage
   outputLanguage: string
   maxDebateRounds: number
   maxRiskRounds: number
@@ -36,6 +39,7 @@ export const DEFAULT_SETTINGS: Settings = {
   deepThinkLlm: 'gpt-5.6',
   quickThinkLlm: 'gpt-5.6-luna',
   backendUrl: null,
+  uiLanguage: 'system',
   outputLanguage: '中文',
   maxDebateRounds: 1,
   maxRiskRounds: 1,

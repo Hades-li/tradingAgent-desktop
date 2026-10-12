@@ -29,8 +29,9 @@ import {
 } from '@renderer/components/ui/select'
 import { Slider } from '@renderer/components/ui/slider'
 import { Switch } from '@renderer/components/ui/switch'
+import { useTranslation } from 'react-i18next'
 import { useSettingsStore } from '@renderer/store/settingsStore'
-import { ANALYST_LABELS } from '@shared/labels'
+import { useDomain } from '@renderer/i18n'
 import { ANALYST_KEYS, type AnalystKey } from '@shared/protocol'
 
 const CRYPTO_SUFFIXES = ['-USD', '-USDT', '-USDC', '-BTC', '-ETH']
@@ -59,6 +60,8 @@ interface Props {
 }
 
 export function NewAnalysis({ onStart, busy }: Props): React.JSX.Element {
+  const { t } = useTranslation('analysis')
+  const domain = useDomain()
   const settings = useSettingsStore((state) => state.settings)
   const [ticker, setTicker] = useState('')
   const [date, setDate] = useState(today())
@@ -85,10 +88,10 @@ export function NewAnalysis({ onStart, busy }: Props): React.JSX.Element {
     <div className="mx-auto w-full max-w-3xl overflow-y-auto p-6">
       <FieldGroup>
         <FieldSet>
-          <FieldLegend>新建分析</FieldLegend>
+          <FieldLegend>{t('title')}</FieldLegend>
           <FieldGroup className="grid grid-cols-2 gap-4">
             <Field>
-              <FieldLabel htmlFor="ticker">标的代码</FieldLabel>
+              <FieldLabel htmlFor="ticker">{t('ticker')}</FieldLabel>
               <Input
                 id="ticker"
                 value={ticker}
@@ -97,11 +100,11 @@ export function NewAnalysis({ onStart, busy }: Props): React.JSX.Element {
                 onChange={(event) => setTicker(event.target.value)}
               />
               <FieldDescription>
-                {hasTicker ? `已识别为 ${isCrypto ? '加密货币' : '股票'}管线` : '输入代码后自动识别资产类型'}
+                {t(hasTicker ? (isCrypto ? 'tickerHint.crypto' : 'tickerHint.stock') : 'tickerHint.empty')}
               </FieldDescription>
             </Field>
             <Field data-invalid={!dateValid || undefined}>
-              <FieldLabel htmlFor="date">分析日期</FieldLabel>
+              <FieldLabel htmlFor="date">{t('date')}</FieldLabel>
               <Input
                 id="date"
                 type="date"
@@ -109,14 +112,14 @@ export function NewAnalysis({ onStart, busy }: Props): React.JSX.Element {
                 aria-invalid={!dateValid}
                 onChange={(event) => setDate(event.target.value)}
               />
-              <FieldDescription>历史日期会启用前视数据过滤</FieldDescription>
+              <FieldDescription>{t('dateHint')}</FieldDescription>
             </Field>
           </FieldGroup>
         </FieldSet>
 
         <FieldSet>
-          <FieldLegend variant="label">分析师团队</FieldLegend>
-          <FieldDescription>至少选择一项；未选中的分析师不会进入流水线。</FieldDescription>
+          <FieldLegend variant="label">{t('analysts')}</FieldLegend>
+          <FieldDescription>{t('analystsHint')}</FieldDescription>
           <FieldGroup className="grid grid-cols-2 gap-2">
             {ANALYST_KEYS.map((key) => (
               <Field key={key} orientation="horizontal">
@@ -126,7 +129,7 @@ export function NewAnalysis({ onStart, busy }: Props): React.JSX.Element {
                   onCheckedChange={() => toggle(key)}
                 />
                 <FieldLabel htmlFor={`analyst-${key}`} className="font-normal">
-                  {ANALYST_LABELS[key]}
+                  {domain.analyst(key)}
                 </FieldLabel>
               </Field>
             ))}
@@ -135,7 +138,7 @@ export function NewAnalysis({ onStart, busy }: Props): React.JSX.Element {
 
         <FieldGroup className="grid grid-cols-2 gap-4">
           <Field>
-            <FieldLabel htmlFor="depth">研究深度 · {rounds} 轮辩论</FieldLabel>
+            <FieldLabel htmlFor="depth">{t('depth', { rounds })}</FieldLabel>
             <Slider
               id="depth"
               min={1}
@@ -144,10 +147,10 @@ export function NewAnalysis({ onStart, busy }: Props): React.JSX.Element {
               value={rounds}
               onValueChange={(value) => setRounds(value as number)}
             />
-            <FieldDescription>对应 max_debate_rounds / max_risk_discuss_rounds</FieldDescription>
+            <FieldDescription>{t('depthHint')}</FieldDescription>
           </Field>
           <Field>
-            <FieldLabel htmlFor="language">输出语言</FieldLabel>
+            <FieldLabel htmlFor="language">{t('outputLanguage')}</FieldLabel>
             <Select
               items={LANGUAGES}
               value={language}
@@ -166,15 +169,15 @@ export function NewAnalysis({ onStart, busy }: Props): React.JSX.Element {
                 </SelectGroup>
               </SelectContent>
             </Select>
-            <FieldDescription>内部辩论固定英文以保证推理质量</FieldDescription>
+            <FieldDescription>{t('outputLanguageHint')}</FieldDescription>
           </Field>
         </FieldGroup>
 
         <Field orientation="horizontal">
           <Switch id="checkpoint" checked={checkpoint} onCheckedChange={setCheckpoint} />
           <FieldContent>
-            <FieldTitle>启用断点续跑</FieldTitle>
-            <FieldDescription>崩溃后可从最后一个成功节点恢复</FieldDescription>
+            <FieldTitle>{t('checkpoint')}</FieldTitle>
+            <FieldDescription>{t('checkpointHint')}</FieldDescription>
           </FieldContent>
         </Field>
 
@@ -193,10 +196,10 @@ export function NewAnalysis({ onStart, busy }: Props): React.JSX.Element {
             }
           >
             <Play />
-            开始分析
+            {t('start')}
           </Button>
           <FieldDescription>
-            使用提供方 {settings.llmProvider} · {analysts.length + 8} 个 agent
+            {t('summary', { provider: settings.llmProvider, count: analysts.length + 8 })}
           </FieldDescription>
         </Field>
       </FieldGroup>

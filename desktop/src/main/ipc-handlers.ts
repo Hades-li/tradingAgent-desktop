@@ -14,6 +14,7 @@ import type { Settings } from '@shared/settings'
 import { buildRunConfig, buildSpawnEnv } from './env-builder'
 import { clearKey, decryptAll, keyStatus, setKey } from './keychain'
 import { resolveSidecar, sidecarCwd } from './python-bridge'
+import { mainT } from './i18n'
 import { listReports, readReport, reportDirName } from './reports-reader'
 import type { RunManager } from './run-manager'
 import { loadSettings, saveSettings } from './settings-store'
@@ -37,7 +38,7 @@ async function fetchOptions(): Promise<OptionsPayload> {
     { cwd: sidecarCwd(), maxBuffer: 8 * 1024 * 1024 }
   )
   const line = stdout.split('\n').find((candidate) => candidate.trim().startsWith('{'))
-  if (!line) throw new Error('分析引擎没有返回选项数据')
+  if (!line) throw new Error(mainT()('engineNoOptions'))
   return JSON.parse(line) as OptionsPayload
 }
 

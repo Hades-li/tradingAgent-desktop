@@ -30,11 +30,15 @@ export interface SpawnOptions {
 }
 
 type Sink = (channel: string, payload: unknown) => void
+type StartFailedMessage = (message: string) => string
 
 export class RunManager {
   private runs = new Map<string, RunHandle>()
 
-  constructor(private readonly sink: Sink) {}
+  constructor(
+    private readonly sink: Sink,
+    private readonly startFailedMessage: StartFailedMessage = (message) => message
+  ) {}
 
   get activeRunIds(): string[] {
     return [...this.runs.keys()]
@@ -58,7 +62,7 @@ export class RunManager {
       this.emit(runId, {
         v: 1,
         type: 'error',
-        message: `无法启动分析引擎：${error.message}`,
+        message: this.startFailedMessage(error.message),
         recoverable: false
       })
     })

@@ -7,6 +7,7 @@
 
 import { useEffect, useMemo, useState } from 'react'
 import { FileText, GitBranch, Square, Terminal } from 'lucide-react'
+import { useTranslation } from 'react-i18next'
 import { useDefaultLayout } from 'react-resizable-panels'
 import { EventStream } from '@renderer/components/EventStream'
 import { Pipeline } from '@renderer/components/Pipeline'
@@ -19,8 +20,13 @@ import {
   ResizablePanel,
   ResizablePanelGroup
 } from '@renderer/components/ui/resizable'
-import { completedSectionCount, expectedSections, useRunStore } from '@renderer/store/runStore'
-import { SIGNAL_LABELS, agentLabel } from '@shared/labels'
+import {
+  completedSectionCount,
+  expectedSections,
+  useRunStore,
+  type RunStatus
+} from '@renderer/store/runStore'
+import { useDomain } from '@renderer/i18n'
 import { SECTION_KEYS, type SectionKey } from '@shared/protocol'
 
 const ANALYST_AGENT: Record<string, string> = {
@@ -30,12 +36,12 @@ const ANALYST_AGENT: Record<string, string> = {
   fundamentals: 'Fundamentals Analyst'
 }
 
-const STATE: Record<string, { label: string; variant: 'default' | 'secondary' | 'outline' | 'destructive' }> = {
-  idle: { label: '待启动', variant: 'outline' },
-  running: { label: '运行中', variant: 'default' },
-  finished: { label: '已完成', variant: 'secondary' },
-  failed: { label: '已失败', variant: 'destructive' },
-  cancelled: { label: '已取消', variant: 'destructive' }
+const STATE_VARIANT: Record<RunStatus, 'default' | 'secondary' | 'outline' | 'destructive'> = {
+  idle: 'outline',
+  running: 'default',
+  finished: 'secondary',
+  failed: 'destructive',
+  cancelled: 'destructive'
 }
 
 function elapsed(from: number | null, to: number | null): string {
@@ -46,6 +52,8 @@ function elapsed(from: number | null, to: number | null): string {
 }
 
 export function Dashboard(): React.JSX.Element {
+  const { t } = useTranslation('dashboard')
+  const domain = useDomain()
   const run = useRunStore()
   const [, forceTick] = useState(0)
   // Column widths survive restarts; localStorage is enough for a single user.
@@ -67,7 +75,6 @@ export function Dashboard(): React.JSX.Element {
   const latest = useMemo(() => lastTouched(run.sections, available), [run.sections, available])
   const done = completedSectionCount(run.sections, run.agentStatus, run.analysts)
   const analystAgents = run.analysts.map((key) => ANALYST_AGENT[key])
-  const state = STATE[run.status]
 
   return (
     <div className="flex h-full min-h-0 flex-col">
@@ -75,20 +82,20 @@ export function Dashboard(): React.JSX.Element {
         <div className="flex items-center gap-2">
           <strong>{run.ticker || '—'}</strong>
           <span className="text-muted-foreground text-sm">
-            {run.date} · {run.assetType === 'crypto' ? '加密货币管线' : '股票管线'}
+            {run.date} · {t(run.assetType === 'crypto' ? 'pipeline.crypto' : 'pipeline.stock')}
           </span>
-          <Badge variant={state.variant}>{state.label}</Badge>
+          <Badge variant={STATE_VARIANT[run.status]}>{t(`state.${run.status}`)}</Badge>
           {run.signal && (
             <Badge variant={run.isReview ? 'destructive' : 'default'}>
-              {SIGNAL_LABELS[run.signal] ?? run.signal}
+              {domain.ratingShort(run.signal)}
             </Badge>
           )}
         </div>
         <div className="ml-auto flex items-center gap-4 text-sm">
-          <Stat label="已用时" value={elapsed(run.startedAt, run.finishedAt)} />
-          <Stat label="工具调用" value={String(run.toolCalls)} />
-          <Stat label="报告" value={`${done}/${available.length}`} />
-          <Stat label="当前" value={run.currentAgent ? agentLabel(run.currentAgent) : '—'} />
+          <Stat label={t('stat.elapsed')} value={elapsed(run.startedAt, run.finishedAt)} />
+          <Stat label={t('stat.toolCalls')} value={String(run.toolCalls)} />
+          <Stat label={t('stat.reports')} value={`${done}/${available.length}`} />
+          <Stat label={t('stat.current')} value={run.currentAgent ? domain.agent(run.currentAgent) : '—'} />
           {run.status === 'running' && run.runId && (
             <Button
               variant="outline"
@@ -96,7 +103,7 @@ export function Dashboard(): React.JSX.Element {
               onClick={() => void window.desktop.run.cancel(run.runId as string)}
             >
               <Square />
-              停止
+              {t('stop')}
             </Button>
           )}
         </div>
@@ -110,14 +117,14 @@ export function Dashboard(): React.JSX.Element {
 
       <ResizablePanelGroup orientation="horizontal" className="min-h-0 flex-1" {...layout}>
         <ResizablePanel id="pipeline" defaultSize="20%" minSize="12%">
-          <ColumnHead icon={<GitBranch className="size-3.5" />} title="智能体流水线" />
+          <ColumnHead icon={<GitBranch className="size-3.5" />} title={t('column.pipeline')} />
           <div className="h-[calc(100%---spacing(8))]">
             <Pipeline agentStatus={run.agentStatus} analystAgents={analystAgents} />
           </div>
         </ResizablePanel>
         <ResizableHandle />
         <ResizablePanel id="stream" defaultSize="30%" minSize="16%">
-          <ColumnHead icon={<Terminal className="size-3.5" />} title="事件流" />
+          <ColumnHead icon={<Terminal className="size-3.5" />} title={t('column.stream')} />
           <div className="h-[calc(100%---spacing(8))]">
             <EventStream log={run.log} />
           </div>
@@ -125,7 +132,7 @@ export function Dashboard(): React.JSX.Element {
         <ResizableHandle />
         {/* Reports keep a hard 300px floor so the Markdown stays readable. */}
         <ResizablePanel id="reports" defaultSize="50%" minSize="300px">
-          <ColumnHead icon={<FileText className="size-3.5" />} title="分析结果" />
+          <ColumnHead icon={<FileText className="size-3.5" />} title={t('column.results')} />
           <div className="h-[calc(100%---spacing(8))]">
             <ReportTabs sections={run.sections} available={available} latest={latest} />
           </div>

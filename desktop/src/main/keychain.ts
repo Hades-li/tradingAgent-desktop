@@ -10,6 +10,7 @@
 import { existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 import { app, safeStorage } from 'electron'
+import { mainT } from './i18n'
 import { repoRoot } from './python-bridge'
 
 type Vault = Record<string, string>
@@ -46,7 +47,7 @@ export function setKey(envName: string, value: string): void {
   } else {
     // No OS keychain (e.g. a headless Linux session without libsecret). Refuse
     // rather than silently persisting a key in plaintext.
-    throw new Error('系统钥匙串不可用，无法安全保存密钥')
+    throw new Error(mainT()('keychainUnavailable'))
   }
   writeVault(vault)
 }

@@ -9,6 +9,7 @@
 import { existsSync } from 'node:fs'
 import { join, resolve } from 'node:path'
 import { app } from 'electron'
+import { mainT } from './i18n'
 
 export interface SidecarCommand {
   command: string
@@ -29,7 +30,7 @@ export function resolveSidecar(): SidecarCommand {
   if (app.isPackaged) {
     const binary = packagedSidecar()
     if (!existsSync(binary)) {
-      throw new Error(`未找到分析引擎：${binary}。请先运行 scripts/build-sidecar.sh。`)
+      throw new Error(mainT()('engineNotFound', { binary }))
     }
     return { command: binary, baseArgs: [] }
   }

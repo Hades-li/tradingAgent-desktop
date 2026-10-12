@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { useTranslation } from 'react-i18next'
 import { Activity, ChevronRight, FileText, Key, Plus, Settings as SettingsIcon } from 'lucide-react'
 import { Badge } from '@renderer/components/ui/badge'
 import { Button } from '@renderer/components/ui/button'
@@ -19,6 +20,7 @@ import {
 } from '@renderer/components/ui/sidebar'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@renderer/components/ui/tooltip'
 import { cn } from '@renderer/lib/utils'
+import { useDomain } from '@renderer/i18n'
 import { useRunStore } from '@renderer/store/runStore'
 import { useSettingsStore } from '@renderer/store/settingsStore'
 
@@ -38,6 +40,8 @@ interface Props {
 }
 
 export function Sidebar({ view, onNavigate, historyVersion }: Props): React.JSX.Element {
+  const { t } = useTranslation('sidebar')
+  const domain = useDomain()
   const run = useRunStore()
   const keyStatus = useSettingsStore((state) => state.keyStatus)
   const [entries, setEntries] = useState<HistoryEntry[]>([])
@@ -60,14 +64,14 @@ export function Sidebar({ view, onNavigate, historyVersion }: Props): React.JSX.
           <div className="px-2 pb-2">
             <Button className="no-drag w-full" onClick={() => onNavigate('form')}>
               <Plus />
-              新建分析
+              {t('newAnalysis')}
             </Button>
           </div>
         </SidebarHeader>
 
         <SidebarContent>
           {run.runId && (
-            <CollapsibleGroup title="当前运行">
+            <CollapsibleGroup title={t('currentRun')}>
               <SidebarMenuItem>
                 <SidebarMenuButton
                   isActive={view === 'dashboard'}
@@ -79,17 +83,21 @@ export function Sidebar({ view, onNavigate, historyVersion }: Props): React.JSX.
                     <span className="text-muted-foreground"> · {run.date}</span>
                   </span>
                   <Badge variant={run.status === 'running' ? 'default' : 'secondary'}>
-                    {run.status === 'running' ? '运行中' : (run.signal ?? '已结束')}
+                    {run.status === 'running'
+                      ? t('running')
+                      : run.signal
+                        ? domain.ratingShort(run.signal)
+                        : t('ended')}
                   </Badge>
                 </SidebarMenuButton>
               </SidebarMenuItem>
             </CollapsibleGroup>
           )}
 
-          <CollapsibleGroup title="历史记录">
+          <CollapsibleGroup title={t('history')}>
             {entries.length === 0 ? (
               <SidebarMenuItem>
-                <p className="text-muted-foreground px-2 py-1 text-xs">暂无历史</p>
+                <p className="text-muted-foreground px-2 py-1 text-xs">{t('noHistory')}</p>
               </SidebarMenuItem>
             ) : (
               entries.slice(0, 40).map((entry) => (
@@ -110,7 +118,7 @@ export function Sidebar({ view, onNavigate, historyVersion }: Props): React.JSX.
         <SidebarSeparator className="mx-0" />
         <SidebarFooter className="text-muted-foreground flex-row items-center gap-2 px-3 py-2 text-xs">
           <Key className="size-3.5" />
-          <span>{storedKeys} 个密钥</span>
+          <span>{t('keyCount', { count: storedKeys })}</span>
           <Tooltip>
             <TooltipTrigger
               render={
@@ -118,14 +126,14 @@ export function Sidebar({ view, onNavigate, historyVersion }: Props): React.JSX.
                   variant={view === 'settings' ? 'secondary' : 'ghost'}
                   size="icon-sm"
                   className="ml-auto"
-                  aria-label="设置"
+                  aria-label={t('settings')}
                   onClick={() => onNavigate('settings')}
                 />
               }
             >
               <SettingsIcon />
             </TooltipTrigger>
-            <TooltipContent>设置</TooltipContent>
+            <TooltipContent>{t('settings')}</TooltipContent>
           </Tooltip>
         </SidebarFooter>
       </SidebarRoot>

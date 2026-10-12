@@ -8,7 +8,7 @@ import { Briefcase, ChartNoAxesColumn, Shield, TrendingUp, Users } from 'lucide-
 import { StatusBadge } from '@renderer/components/StatusBadge'
 import { ScrollArea } from '@renderer/components/ui/scroll-area'
 import { Separator } from '@renderer/components/ui/separator'
-import { agentLabel, teamLabel } from '@shared/labels'
+import { useDomain } from '@renderer/i18n'
 import { TEAM_LAYOUT, type AgentStatus } from '@shared/protocol'
 import { cn } from '@renderer/lib/utils'
 
@@ -26,6 +26,7 @@ interface Props {
 }
 
 export function Pipeline({ agentStatus, analystAgents }: Props): React.JSX.Element {
+  const domain = useDomain()
   const teams = Object.entries(TEAM_LAYOUT)
     .map(([team, agents]) => ({
       team,
@@ -43,7 +44,7 @@ export function Pipeline({ agentStatus, analystAgents }: Props): React.JSX.Eleme
               {index > 0 && <Separator className="my-1" />}
               <div className="text-muted-foreground flex items-center gap-1.5 px-1 text-xs font-medium">
                 <Icon className="size-3.5" />
-                <span>{teamLabel(team)}</span>
+                <span>{domain.team(team)}</span>
               </div>
               {agents.map((agent) => {
                 const status = agentStatus[agent] ?? 'pending'
@@ -55,7 +56,7 @@ export function Pipeline({ agentStatus, analystAgents }: Props): React.JSX.Eleme
                       status === 'in_progress' && 'bg-accent'
                     )}
                   >
-                    <span className="truncate text-sm">{agentLabel(agent)}</span>
+                    <span className="truncate text-sm">{domain.agent(agent)}</span>
                     <StatusBadge status={status} />
                   </div>
                 )

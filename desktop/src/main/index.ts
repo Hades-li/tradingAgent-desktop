@@ -4,13 +4,15 @@
 
 import { join } from 'node:path'
 import { BrowserWindow, app, shell } from 'electron'
+import { mainT } from './i18n'
 import { registerIpcHandlers } from './ipc-handlers'
 import { RunManager, webContentsSink } from './run-manager'
 
 let mainWindow: BrowserWindow | null = null
 
 const runManager = new RunManager(
-  webContentsSink(() => mainWindow?.webContents ?? null)
+  webContentsSink(() => mainWindow?.webContents ?? null),
+  (message) => mainT()('engineStartFailed', { message })
 )
 
 function createWindow(): void {

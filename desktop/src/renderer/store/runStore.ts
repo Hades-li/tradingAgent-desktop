@@ -19,12 +19,22 @@ import {
 
 export type LogKind = 'tool' | 'msg' | 'sys'
 
+export type LogKey =
+  | 'log.system'
+  | 'log.error'
+  | 'log.started'
+  | 'log.finished'
+  | 'log.finishedNoRating'
+
 export interface LogEntry {
   id: number
   at: number
   kind: LogKind
   label: string
   text: string
+  labelKey?: LogKey
+  textKey?: LogKey
+  params?: Record<string, string>
 }
 
 export type RunStatus = 'idle' | 'running' | 'finished' | 'failed' | 'cancelled'
@@ -67,8 +77,14 @@ function truncate(entries: LogEntry[]): LogEntry[] {
   return entries.length > MAX_LOG ? entries.slice(entries.length - MAX_LOG) : entries
 }
 
-function push(entries: LogEntry[], kind: LogKind, label: string, text: string): LogEntry[] {
-  return truncate([...entries, { id: sequence++, at: Date.now(), kind, label, text }])
+function push(
+  entries: LogEntry[],
+  kind: LogKind,
+  label: string,
+  text: string,
+  keys: Pick<LogEntry, 'labelKey' | 'textKey' | 'params'> = {}
+): LogEntry[] {
+  return truncate([...entries, { id: sequence++, at: Date.now(), kind, label, text, ...keys }])
 }
 
 const initial = {
@@ -104,7 +120,11 @@ export const useRunStore = create<RunState>((set) => ({
       assetType,
       status: 'running',
       startedAt: Date.now(),
-      log: push([], 'sys', '系统', `已启动 ${ticker} · ${date}`)
+      log: push([], 'sys', 'System', '', {
+        labelKey: 'log.system',
+        textKey: 'log.started',
+        params: { ticker, date }
+      })
     }),
 
   apply: (event) =>
@@ -150,7 +170,15 @@ export const useRunStore = create<RunState>((set) => ({
             isReview: event.isReview,
             reportPath: event.reportPath ?? null,
             currentAgent: null,
-            log: push(state.log, 'sys', '系统', `分析完成 · ${event.signal ?? '无评级'}`)
+            log: push(
+              state.log,
+              'sys',
+              'System',
+              '',
+              event.signal
+                ? { labelKey: 'log.system', textKey: 'log.finished', params: { rating: event.signal } }
+                : { labelKey: 'log.system', textKey: 'log.finishedNoRating' }
+            )
           }
         case 'error':
           return {
@@ -158,7 +186,7 @@ export const useRunStore = create<RunState>((set) => ({
             finishedAt: Date.now(),
             error: event.message,
             currentAgent: null,
-            log: push(state.log, 'sys', '错误', event.message)
+            log: push(state.log, 'sys', 'Error', event.message, { labelKey: 'log.error' })
           }
         default:
           return {}
@@ -170,7 +198,7 @@ export const useRunStore = create<RunState>((set) => ({
       status: 'failed',
       error: message,
       finishedAt: Date.now(),
-      log: push(state.log, 'sys', '错误', message)
+      log: push(state.log, 'sys', 'Error', message, { labelKey: 'log.error' })
     })),
 
   reset: () => set({ ...initial })

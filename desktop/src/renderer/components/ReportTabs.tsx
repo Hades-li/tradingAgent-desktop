@@ -10,7 +10,8 @@ import remarkGfm from 'remark-gfm'
 import { Button } from '@renderer/components/ui/button'
 import { Empty, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from '@renderer/components/ui/empty'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@renderer/components/ui/tabs'
-import { SECTION_LABELS } from '@shared/labels'
+import { useTranslation } from 'react-i18next'
+import { useDomain } from '@renderer/i18n'
 import type { SectionKey } from '@shared/protocol'
 
 interface Props {
@@ -21,6 +22,8 @@ interface Props {
 }
 
 export function ReportTabs({ sections, available, latest }: Props): React.JSX.Element {
+  const { t } = useTranslation('dashboard')
+  const domain = useDomain()
   const [active, setActive] = useState<SectionKey | null>(null)
   const [pinned, setPinned] = useState(false)
 
@@ -44,13 +47,13 @@ export function ReportTabs({ sections, available, latest }: Props): React.JSX.El
         <TabsList>
           {available.map((section) => (
             <TabsTrigger key={section} value={section}>
-              {SECTION_LABELS[section]}
+              {domain.section(section)}
             </TabsTrigger>
           ))}
         </TabsList>
         {pinned && (
           <Button variant="outline" size="sm" className="ml-auto" onClick={() => setPinned(false)}>
-            跟随最新
+            {t('reports.followLatest')}
           </Button>
         )}
       </div>
@@ -72,14 +75,15 @@ export function ReportTabs({ sections, available, latest }: Props): React.JSX.El
 }
 
 function ReportEmpty(): React.JSX.Element {
+  const { t } = useTranslation('dashboard')
   return (
     <Empty>
       <EmptyHeader>
         <EmptyMedia variant="icon">
           <FileText />
         </EmptyMedia>
-        <EmptyTitle>尚未生成内容</EmptyTitle>
-        <EmptyDescription>该板块会在对应的智能体完成后填充。</EmptyDescription>
+        <EmptyTitle>{t('reports.emptyTitle')}</EmptyTitle>
+        <EmptyDescription>{t('reports.emptyDescription')}</EmptyDescription>
       </EmptyHeader>
     </Empty>
   )

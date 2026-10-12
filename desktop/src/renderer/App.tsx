@@ -5,6 +5,7 @@
 
 import { useCallback, useEffect, useState } from 'react'
 import { Sidebar, type View } from '@renderer/components/Sidebar'
+import { applyUiLanguage, i18n } from '@renderer/i18n'
 import { Dashboard } from '@renderer/views/Dashboard'
 import { History } from '@renderer/views/History'
 import { NewAnalysis } from '@renderer/views/NewAnalysis'
@@ -29,6 +30,10 @@ export function App(): React.JSX.Element {
   }, [loadSettings])
 
   useEffect(() => {
+    applyUiLanguage(settings.uiLanguage)
+  }, [settings.uiLanguage])
+
+  useEffect(() => {
     const offEvent = window.desktop.run.onEvent(({ event }) => {
       apply(event)
       if (event.type === 'run_finished') setHistoryVersion((value) => value + 1)
@@ -37,10 +42,7 @@ export function App(): React.JSX.Element {
       // A sidecar that exits non-zero without an error event died before it
       // could speak the protocol — on macOS this is usually quarantine.
       if (code !== 0 && useRunStore.getState().status === 'running') {
-        fail(
-          `分析引擎异常退出（code ${code}）。若为已下载的安装包，请执行：` +
-            'xattr -dr com.apple.quarantine /Applications/TradingAgents.app'
-        )
+        fail(i18n.t('common:app.engineExited', { code: String(code) }))
       }
     })
     return () => {

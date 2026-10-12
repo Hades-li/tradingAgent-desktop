@@ -1,5 +1,5 @@
 import { Badge } from '@renderer/components/ui/badge'
-import { STATUS_LABELS } from '@shared/labels'
+import { useDomain } from '@renderer/i18n'
 import type { AgentStatus } from '@shared/protocol'
 
 const VARIANT: Record<AgentStatus, React.ComponentProps<typeof Badge>['variant']> = {
@@ -9,5 +9,6 @@ const VARIANT: Record<AgentStatus, React.ComponentProps<typeof Badge>['variant']
 }
 
 export function StatusBadge({ status }: { status: AgentStatus }): React.JSX.Element {
-  return <Badge variant={VARIANT[status]}>{STATUS_LABELS[status] ?? status}</Badge>
+  const domain = useDomain()
+  return <Badge variant={VARIANT[status]}>{domain.status(status)}</Badge>
 }

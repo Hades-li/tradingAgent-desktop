@@ -4,6 +4,7 @@
 
 import { useEffect, useState } from 'react'
 import { FolderOpen, Inbox } from 'lucide-react'
+import { useTranslation } from 'react-i18next'
 import Markdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import { Button } from '@renderer/components/ui/button'
@@ -35,6 +36,7 @@ function openExternalLinks(event: React.SyntheticEvent<HTMLIFrameElement>): void
 }
 
 export function History({ selectedId }: { selectedId: string | null }): React.JSX.Element {
+  const { t } = useTranslation('history')
   const [entries, setEntries] = useState<HistoryEntry[]>([])
   const [detail, setDetail] = useState<HistoryDetail | null>(null)
 
@@ -50,15 +52,15 @@ export function History({ selectedId }: { selectedId: string | null }): React.JS
   if (!selectedId) {
     return (
       <div className="mx-auto w-full max-w-3xl p-6">
-        <h3 className="mb-3 font-medium">历史记录</h3>
+        <h3 className="mb-3 font-medium">{t('title')}</h3>
         {entries.length === 0 ? (
           <Empty>
             <EmptyHeader>
               <EmptyMedia variant="icon">
                 <Inbox />
               </EmptyMedia>
-              <EmptyTitle>还没有已保存的分析</EmptyTitle>
-              <EmptyDescription>完成一次分析后，报告会自动落盘并出现在这里。</EmptyDescription>
+              <EmptyTitle>{t('emptyTitle')}</EmptyTitle>
+              <EmptyDescription>{t('emptyDescription')}</EmptyDescription>
             </EmptyHeader>
           </Empty>
         ) : (
@@ -78,7 +80,7 @@ export function History({ selectedId }: { selectedId: string | null }): React.JS
                     onClick={() => void window.desktop.history.reveal(entry.path)}
                   >
                     <FolderOpen />
-                    在访达中显示
+                    {t('reveal')}
                   </Button>
                 </ItemActions>
               </Item>
@@ -104,14 +106,14 @@ export function History({ selectedId }: { selectedId: string | null }): React.JS
             onClick={() => void window.desktop.history.reveal(detail.path)}
           >
             <FolderOpen />
-            在访达中显示
+            {t('reveal')}
           </Button>
         )}
       </header>
       {detail?.completeHtml ? (
         <iframe
           key={detail.id}
-          title={`${detail.ticker} 报告`}
+          title={t('reportTitle', { ticker: detail.ticker })}
           srcDoc={detail.completeHtml}
           sandbox="allow-same-origin"
           onLoad={openExternalLinks}

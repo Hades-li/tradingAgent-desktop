@@ -8,6 +8,7 @@
  */
 
 import { useEffect, useMemo, useRef, useState } from 'react'
+import { useTranslation } from 'react-i18next'
 import { Badge } from '@renderer/components/ui/badge'
 import { ToggleGroup, ToggleGroupItem } from '@renderer/components/ui/toggle-group'
 import { cn } from '@renderer/lib/utils'
@@ -15,12 +16,7 @@ import type { LogEntry, LogKind } from '@renderer/store/runStore'
 
 type Filter = 'all' | LogKind
 
-const FILTERS: { id: Filter; label: string }[] = [
-  { id: 'all', label: '全部' },
-  { id: 'tool', label: '工具' },
-  { id: 'msg', label: '消息' },
-  { id: 'sys', label: '系统' }
-]
+const FILTERS: Filter[] = ['all', 'tool', 'msg', 'sys']
 
 const KIND_TONE: Record<LogKind, string> = {
   tool: 'text-primary',
@@ -28,11 +24,12 @@ const KIND_TONE: Record<LogKind, string> = {
   sys: 'text-muted-foreground'
 }
 
-function timeOf(at: number): string {
-  return new Date(at).toLocaleTimeString('zh-CN', { hour12: false })
+function timeOf(at: number, language: string): string {
+  return new Date(at).toLocaleTimeString(language, { hour12: false })
 }
 
 export function EventStream({ log }: { log: LogEntry[] }): React.JSX.Element {
+  const { t, i18n } = useTranslation('dashboard')
   const [filter, setFilter] = useState<Filter>('all')
   const bottom = useRef<HTMLDivElement>(null)
   const [follow, setFollow] = useState(true)
@@ -55,13 +52,13 @@ export function EventStream({ log }: { log: LogEntry[] }): React.JSX.Element {
           size="sm"
         >
           {FILTERS.map((item) => (
-            <ToggleGroupItem key={item.id} value={item.id}>
-              {item.label}
+            <ToggleGroupItem key={item} value={item}>
+              {t(`stream.${item}`)}
             </ToggleGroupItem>
           ))}
         </ToggleGroup>
         <Badge variant="secondary" className="ml-auto">
-          {visible.length} 条
+          {t('stream.count', { count: visible.length })}
         </Badge>
       </div>
       <div
@@ -75,12 +72,14 @@ export function EventStream({ log }: { log: LogEntry[] }): React.JSX.Element {
         {visible.map((entry) => (
           <div key={entry.id} className="mb-1 flex gap-2 text-sm leading-relaxed">
             <span className="text-muted-foreground shrink-0 font-mono text-xs">
-              {timeOf(entry.at)}
+              {timeOf(entry.at, i18n.language)}
             </span>
             <span className={cn('shrink-0 font-medium', KIND_TONE[entry.kind])}>
-              {entry.label}
+              {entry.labelKey ? t(entry.labelKey) : entry.label}
             </span>
-            <span className="min-w-0 break-words whitespace-pre-wrap">{entry.text}</span>
+            <span className="min-w-0 break-words whitespace-pre-wrap">
+              {entry.textKey ? String(t(entry.textKey, (entry.params ?? {}) as never)) : entry.text}
+            </span>
           </div>
         ))}
         <div ref={bottom} />
