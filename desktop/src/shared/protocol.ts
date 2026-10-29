@@ -85,6 +85,34 @@ export interface OptionsPayload {
   defaults: Record<string, unknown>
 }
 
+export const MARKET_KEYS = ['us', 'crypto', 'hk', 'cn'] as const
+export type MarketKey = (typeof MARKET_KEYS)[number]
+
+export interface MarketItem {
+  symbol: string
+  name: string
+  exchange: string | null
+  currency: string | null
+  price: number | null
+  changePercent: number | null
+  marketCap: number | null
+}
+
+export interface MarketListPayload {
+  v: 1
+  type: 'market_list'
+  market: MarketKey
+  items: MarketItem[]
+}
+
+export interface SymbolSearchPayload {
+  v: 1
+  type: 'symbol_search'
+  market: MarketKey
+  query: string
+  items: MarketItem[]
+}
+
 /** A parsed stdout line is only usable when it is an object of a known version. */
 export function isSupportedEvent(value: unknown): value is RunEvent {
   if (typeof value !== 'object' || value === null) return false

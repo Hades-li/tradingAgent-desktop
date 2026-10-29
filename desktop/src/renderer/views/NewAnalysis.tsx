@@ -57,13 +57,14 @@ interface Props {
     checkpointEnabled: boolean
   }) => void
   busy: boolean
+  initialTicker?: string
 }
 
-export function NewAnalysis({ onStart, busy }: Props): React.JSX.Element {
+export function NewAnalysis({ onStart, busy, initialTicker = '' }: Props): React.JSX.Element {
   const { t } = useTranslation('analysis')
   const domain = useDomain()
   const settings = useSettingsStore((state) => state.settings)
-  const [ticker, setTicker] = useState('')
+  const [ticker, setTicker] = useState(initialTicker)
   const [date, setDate] = useState(today())
   const [analysts, setAnalysts] = useState<AnalystKey[]>(settings.defaultAnalysts)
   const [rounds, setRounds] = useState(settings.maxDebateRounds)

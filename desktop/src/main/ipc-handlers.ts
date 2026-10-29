@@ -1,7 +1,7 @@
 /**
  * The renderer's entire privilege surface. Every handler is explicit: the
  * renderer can start/cancel runs, read and write settings, write (never read)
- * API keys, and browse saved reports.
+ * API keys, browse saved reports, and look up market lists and symbols.
  */
 
 import { execFile } from 'node:child_process'
@@ -9,8 +9,15 @@ import { randomUUID } from 'node:crypto'
 import { join } from 'node:path'
 import { promisify } from 'node:util'
 import { app, ipcMain, shell } from 'electron'
-import type { OptionsPayload, RunRequest } from '@shared/protocol'
+import type {
+  MarketKey,
+  MarketListPayload,
+  OptionsPayload,
+  RunRequest,
+  SymbolSearchPayload
+} from '@shared/protocol'
 import type { Settings } from '@shared/settings'
+import { parseEngineReply, TtlCache } from './engine-reply'
 import { buildRunConfig, buildSpawnEnv } from './env-builder'
 import { clearKey, decryptAll, keyStatus, setKey } from './keychain'
 import { resolveSidecar, sidecarCwd } from './python-bridge'
@@ -26,20 +33,49 @@ export function reportsRoot(): string {
   return join(app.getPath('userData'), 'reports')
 }
 
+/** Run one short-lived sidecar command and return its single reply line. */
+async function queryEngine(request: Record<string, unknown>): Promise<Record<string, unknown> | null> {
+  const { command, baseArgs } = resolveSidecar()
+  try {
+    const { stdout } = await execFileAsync(
+      command,
+      [...baseArgs, JSON.stringify({ v: 1, ...request })],
+      { cwd: sidecarCwd(), maxBuffer: 8 * 1024 * 1024 }
+    )
+    return parseEngineReply(stdout)
+  } catch (error) {
+    parseEngineReply(String((error as { stdout?: unknown }).stdout ?? ''))
+    throw error
+  }
+}
+
 /**
  * Ask Python for the provider/model catalog instead of keeping a second copy
- * in TypeScript. Runs a short-lived process; the payload is one JSON line.
+ * in TypeScript.
  */
 async function fetchOptions(): Promise<OptionsPayload> {
-  const { command, baseArgs } = resolveSidecar()
-  const { stdout } = await execFileAsync(
-    command,
-    [...baseArgs, JSON.stringify({ v: 1, command: 'options' })],
-    { cwd: sidecarCwd(), maxBuffer: 8 * 1024 * 1024 }
-  )
-  const line = stdout.split('\n').find((candidate) => candidate.trim().startsWith('{'))
-  if (!line) throw new Error(mainT()('engineNoOptions'))
-  return JSON.parse(line) as OptionsPayload
+  const reply = await queryEngine({ command: 'options' })
+  if (!reply) throw new Error(mainT()('engineNoOptions'))
+  return reply as unknown as OptionsPayload
+}
+
+const marketLists = new TtlCache<MarketKey, MarketListPayload>(5 * 60 * 1000)
+
+/** Market lists barely move within minutes; caching keeps tab switches instant. */
+async function fetchMarketList(market: MarketKey): Promise<MarketListPayload> {
+  const cached = marketLists.get(market)
+  if (cached) return cached
+  const reply = await queryEngine({ command: 'market_list', market })
+  if (!reply) throw new Error(mainT()('engineNoMarketData'))
+  const payload = reply as unknown as MarketListPayload
+  marketLists.set(market, payload)
+  return payload
+}
+
+async function searchSymbols(market: MarketKey, query: string): Promise<SymbolSearchPayload> {
+  const reply = await queryEngine({ command: 'symbol_search', market, query })
+  if (!reply) throw new Error(mainT()('engineNoMarketData'))
+  return reply as unknown as SymbolSearchPayload
 }
 
 export function registerIpcHandlers(runManager: RunManager): void {
@@ -82,6 +118,11 @@ export function registerIpcHandlers(runManager: RunManager): void {
   })
 
   ipcMain.handle('run:cancel', (_event, runId: string) => runManager.cancel(runId))
+
+  ipcMain.handle('market:list', (_event, market: MarketKey) => fetchMarketList(market))
+  ipcMain.handle('market:search', (_event, market: MarketKey, query: string) =>
+    searchSymbols(market, query)
+  )
 
   ipcMain.handle('history:list', () => listReports(reportsRoot()))
   ipcMain.handle('history:read', (_event, id: string) => readReport(reportsRoot(), id))

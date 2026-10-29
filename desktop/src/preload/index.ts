@@ -4,7 +4,14 @@
  */
 
 import { contextBridge, ipcRenderer } from 'electron'
-import type { OptionsPayload, RunEvent, RunRequest } from '@shared/protocol'
+import type {
+  MarketKey,
+  MarketListPayload,
+  OptionsPayload,
+  RunEvent,
+  RunRequest,
+  SymbolSearchPayload
+} from '@shared/protocol'
 import type { Settings } from '@shared/settings'
 
 export type KeyState = 'stored' | 'env' | 'missing'
@@ -50,6 +57,12 @@ const api = {
       ipcRenderer.on('run:exit', listener)
       return () => ipcRenderer.removeListener('run:exit', listener)
     }
+  },
+  market: {
+    list: (market: MarketKey): Promise<MarketListPayload> =>
+      ipcRenderer.invoke('market:list', market),
+    search: (market: MarketKey, query: string): Promise<SymbolSearchPayload> =>
+      ipcRenderer.invoke('market:search', market, query)
   },
   history: {
     list: () => ipcRenderer.invoke('history:list'),

@@ -1,6 +1,14 @@
 import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { Activity, ChevronRight, FileText, Key, Plus, Settings as SettingsIcon } from 'lucide-react'
+import {
+  Activity,
+  ChevronRight,
+  Compass,
+  FileText,
+  Key,
+  Plus,
+  Settings as SettingsIcon
+} from 'lucide-react'
 import { Badge } from '@renderer/components/ui/badge'
 import { Button } from '@renderer/components/ui/button'
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@renderer/components/ui/collapsible'
@@ -31,7 +39,7 @@ interface HistoryEntry {
   path: string
 }
 
-export type View = 'form' | 'dashboard' | 'settings' | 'history'
+export type View = 'form' | 'market' | 'dashboard' | 'settings' | 'history'
 
 interface Props {
   view: View
@@ -70,6 +78,22 @@ export function Sidebar({ view, onNavigate, historyVersion }: Props): React.JSX.
         </SidebarHeader>
 
         <SidebarContent>
+          <SidebarGroup className="py-1">
+            <SidebarGroupContent>
+              <SidebarMenu>
+                <SidebarMenuItem>
+                  <SidebarMenuButton
+                    isActive={view === 'market'}
+                    onClick={() => onNavigate('market')}
+                  >
+                    <Compass />
+                    <span>{t('market')}</span>
+                  </SidebarMenuButton>
+                </SidebarMenuItem>
+              </SidebarMenu>
+            </SidebarGroupContent>
+          </SidebarGroup>
+
           {run.runId && (
             <CollapsibleGroup title={t('currentRun')}>
               <SidebarMenuItem>

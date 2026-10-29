@@ -1,5 +1,5 @@
 /**
- * Shell: sidebar + one of four views. All privileged work goes through
+ * Shell: sidebar + one of five views. All privileged work goes through
  * `window.desktop`, which the preload bridge defines.
  */
 
@@ -8,6 +8,7 @@ import { Sidebar, type View } from '@renderer/components/Sidebar'
 import { applyUiLanguage, i18n } from '@renderer/i18n'
 import { Dashboard } from '@renderer/views/Dashboard'
 import { History } from '@renderer/views/History'
+import { MarketPicker } from '@renderer/views/MarketPicker'
 import { NewAnalysis } from '@renderer/views/NewAnalysis'
 import { SettingsView } from '@renderer/views/Settings'
 import { useRunStore } from '@renderer/store/runStore'
@@ -17,6 +18,7 @@ export function App(): React.JSX.Element {
   const [view, setView] = useState<View>('form')
   const [historyId, setHistoryId] = useState<string | null>(null)
   const [historyVersion, setHistoryVersion] = useState(0)
+  const [pickedTicker, setPickedTicker] = useState('')
   const loadSettings = useSettingsStore((state) => state.load)
   const settings = useSettingsStore((state) => state.settings)
   // Settings arrive asynchronously; the form seeds its local state from them at
@@ -54,6 +56,12 @@ export function App(): React.JSX.Element {
   const navigate = useCallback((next: View, id?: string) => {
     setView(next)
     setHistoryId(id ?? null)
+    setPickedTicker('')
+  }, [])
+
+  const analyzePicked = useCallback((ticker: string) => {
+    setPickedTicker(ticker)
+    setView('form')
   }, [])
 
   const start = useCallback(
@@ -107,11 +115,13 @@ export function App(): React.JSX.Element {
         <div className="min-h-0 flex-1">
           {view === 'form' && (
             <NewAnalysis
-              key={settingsLoaded ? 'ready' : 'loading'}
+              key={`${settingsLoaded ? 'ready' : 'loading'}:${pickedTicker}`}
+              initialTicker={pickedTicker}
               onStart={(input) => void start(input)}
               busy={status === 'running'}
             />
           )}
+          {view === 'market' && <MarketPicker onAnalyze={analyzePicked} />}
           {view === 'dashboard' && <Dashboard key={runId ?? 'idle'} />}
           {view === 'settings' && <SettingsView />}
           {view === 'history' && <History selectedId={historyId} />}
