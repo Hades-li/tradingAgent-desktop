@@ -140,7 +140,7 @@ python3 -m venv .venv
 .venv/bin/python -m pytest -q                   # 建立回归基线，务必先跑
 ```
 
-本机环境：macOS 26.6.2 / arm64、Node v22.23.0、npm 10.9.8、Python 3.12。
+本机环境：macOS 26.6.2 / arm64、Node v22.23.0、pnpm 11.13.0、Python 3.12。
 
 ---
 
@@ -400,7 +400,7 @@ peer 为 `vite ^5||^6||^7`，封顶 Vite 7；而 vite 最新是 8.2.2，
 - `@types/node` 另取最新 22.x 或 24.x
 - `electron-vite@5` 把 `@swc/core` 列为 peer，仅用 SWC 时才需装
 - 应用而非库：**写精确版本（不带 `^`）**，配 `.npmrc` 的 `save-exact=true`，
-  提交 `package-lock.json`
+  提交 `pnpm-lock.yaml`
 - **TypeScript 7.0.2** 是原生编译器版本（跳过 6.x）。先在空目录跑通
   `tsc --noEmit` 与 lint 再定；确认 `typescript-eslint` 支持。**回退选项 6.0.3 / 5.9.3**
 - **Tailwind 4 无 `tailwind.config.js`**：CSS 优先，入口写 `@import "tailwindcss";`，

@@ -10,25 +10,25 @@ Electron + React 客户端。与 Python 核心的唯一耦合点是 **stdio JSON
 cd .. && python3.12 -m venv .venv && .venv/bin/pip install -e ".[dev]"
 
 cd desktop
-npm install
-npm run dev          # electron-vite 开发服务器 + Electron 窗口
+pnpm install
+pnpm run dev          # electron-vite 开发服务器 + Electron 窗口
 ```
 
 开发态用仓库根目录的 `.venv/bin/python -m tradingagents.ipc_main` 作为分析引擎，
 可用 `TRADINGAGENTS_PYTHON` 指向任意解释器。
 
 ```bash
-npm run typecheck    # tsc --noEmit（main/preload/shared 与 renderer 两套）
-npm run test         # vitest，测试就近放在 src/**/*.test.ts
-npm run build        # typecheck + electron-vite build
+pnpm run typecheck    # tsc --noEmit（main/preload/shared 与 renderer 两套）
+pnpm run test         # vitest，测试就近放在 src/**/*.test.ts
+pnpm run build        # typecheck + electron-vite build
 ```
 
 ## 打包
 
 ```bash
 ../scripts/build-sidecar.sh   # PyInstaller --onedir -> desktop/build/sidecar
-npm run pack:mac              # 只出 .app，自用足够
-npm run dist:mac              # 出 DMG
+pnpm run pack:mac              # 只出 .app，自用足够
+pnpm run dist:mac              # 出 DMG
 ```
 
 实测体积（arm64）：sidecar 140MB、`TradingAgents.app` 472MB。`rich` / `pygments` /
@@ -58,9 +58,9 @@ xattr -dr com.apple.quarantine /Applications/TradingAgents.app
 底座是 **Base UI**（`@base-ui/react`），预设 `base-nova`，配置见 `components.json`。
 
 ```bash
-npx shadcn@latest add <component>     # 新增组件
-npx shadcn@latest add <c> --dry-run   # 先看会动哪些文件
-npx shadcn@latest add <c> --diff <f>  # 升级时对比上游与本地改动
+pnpm dlx shadcn@latest add <component>     # 新增组件
+pnpm dlx shadcn@latest add <c> --dry-run   # 先看会动哪些文件
+pnpm dlx shadcn@latest add <c> --diff <f>  # 升级时对比上游与本地改动
 ```
 
 三点约定：
@@ -88,7 +88,7 @@ npx shadcn@latest add <c> --diff <f>  # 升级时对比上游与本地改动
 - 新增一种语言：
   1. 复制 `src/shared/locales/en` 为新目录并翻译，在 `index.ts` 导出，如 `fr`。
   2. 在 `src/shared/i18n/index.ts` 的 `RESOURCES` 里登记，并在 `src/shared/i18n/locales.ts` 的 `LOCALES` 里加一行 `{ code, nativeName }`。
-  3. 运行 `npx vitest run`：`i18n.test.ts` 会检查各语言的 key、占位符是否一致，并扫描渲染进程里残留的写死中文。
+  3. 运行 `pnpm test`：`i18n.test.ts` 会检查各语言的 key、占位符是否一致，并扫描渲染进程里残留的写死中文。
 - 复数用 `_one` / `_other` 等后缀，各语言按自己的规则提供。
 
 ## 结构

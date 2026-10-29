@@ -71,21 +71,24 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
+      - uses: pnpm/action-setup@v4
+        with:
+          package_json_file: desktop/package.json
       - uses: actions/setup-node@v7
         with:
           node-version: "22"
-          cache: npm
-          cache-dependency-path: desktop/package-lock.json
+          cache: pnpm
+          cache-dependency-path: desktop/pnpm-lock.yaml
       - name: Install
         working-directory: desktop
         # Electron's binary is not needed to typecheck or run vitest, and
         # downloading it doubles the job time.
         env:
           ELECTRON_SKIP_BINARY_DOWNLOAD: "1"
-        run: npm ci
+        run: pnpm install --frozen-lockfile
       - name: Typecheck
         working-directory: desktop
-        run: npm run typecheck
+        run: pnpm run typecheck
       - name: Unit tests
         working-directory: desktop
-        run: npm run test
+        run: pnpm run test

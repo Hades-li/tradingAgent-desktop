@@ -7,15 +7,17 @@
   "main": "./out/main/index.js",
   "private": true,
   "type": "module",
+  "packageManager": "pnpm@11.13.0",
   "scripts": {
+    "postinstall": "install-electron",
     "dev": "electron-vite dev",
     "start": "electron-vite preview",
-    "build": "npm run typecheck && electron-vite build",
+    "build": "pnpm run typecheck && electron-vite build",
     "typecheck": "tsc --noEmit -p tsconfig.node.json && tsc --noEmit -p tsconfig.web.json",
     "test": "vitest run",
-    "pack:mac": "npm run build && electron-builder --mac --dir",
-    "dist:mac": "npm run build && electron-builder --mac",
-    "dist:win": "npm run build && electron-builder --win"
+    "pack:mac": "pnpm run build && electron-builder --mac --dir",
+    "dist:mac": "pnpm run build && electron-builder --mac",
+    "dist:win": "pnpm run build && electron-builder --win"
   },
   "dependencies": {
     "@base-ui/react": "1.8.0",

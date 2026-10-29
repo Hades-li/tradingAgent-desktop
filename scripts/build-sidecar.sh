@@ -75,4 +75,4 @@ mkdir -p "$outdir"
 mv "$outdir/tradingagents-sidecar" "$outdir/sidecar"
 
 echo "sidecar 已构建：$outdir/sidecar"
-echo "接下来：cd desktop && npm run dist:mac"
+echo "接下来：cd desktop && pnpm run dist:mac"
