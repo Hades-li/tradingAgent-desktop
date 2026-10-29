@@ -17,8 +17,12 @@ mac:
   category: public.app-category.finance
   # electron-builder converts the 1024px PNG to .icns; regenerate with `pnpm run icons`.
   icon: resources/icon.png
+  # dmg is for first installs; the zip is what the in-app updater downloads
+  # (see src/main/updater). Both are listed in latest-mac.yml.
   target:
     - target: dmg
+      arch: [arm64]
+    - target: zip
       arch: [arm64]
   # Unsigned for now: PyInstaller and electron-builder both ad-hoc sign
   # (codesign -s -), which is what arm64 requires to execute at all.
@@ -28,9 +32,19 @@ win:
   # Multi-size ICO (16-256px) so Explorer, the taskbar and the installer stay crisp.
   icon: resources/icon.ico
 nsis:
+  # No spaces: the name is used verbatim in latest.yml and the release URL.
+  artifactName: ${productName}-Setup-${version}.${ext}
   installerIcon: resources/icon.ico
   uninstallerIcon: resources/icon.ico
 linux:
   target: AppImage
   icon: resources/icon.png
   category: Office
+# Where the in-app updater looks. electron-builder bakes this into the app as
+# resources/app-update.yml and writes latest.yml / latest-mac.yml next to the
+# installers; CI attaches them to a draft release (see .github/workflows/package.yml).
+# Uploading is done by CI, never by electron-builder itself (--publish never).
+publish:
+  provider: github
+  owner: Hades-li
+  repo: tradingAgent-desktop

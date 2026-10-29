@@ -8,5 +8,16 @@ export const sidebar = {
   ended: 'Ended',
   keyCount_one: '{{count}} key',
   keyCount_other: '{{count}} keys',
-  settings: 'Settings'
+  settings: 'Settings',
+  update: {
+    download: 'Update',
+    downloadHint: 'Version {{version}} is available. Click to download and install.',
+    downloadingHint: 'Downloading version {{version}}',
+    install: 'Install',
+    installHint: 'Version {{version}} is downloaded. Click to close the app and install it.',
+    installing: 'Installing',
+    installingHint: 'Closing the app to install version {{version}}',
+    retry: 'Retry',
+    retryHint: 'Update failed: {{message}}'
+  }
 }

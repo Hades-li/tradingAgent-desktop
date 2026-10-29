@@ -104,6 +104,46 @@ pnpm dlx shadcn@latest add <c> --diff <f>  # 升级时对比上游与本地改�
   3. 运行 `pnpm test`：`i18n.test.ts` 会检查各语言的 key、占位符是否一致，并扫描渲染进程里残留的写死中文。
 - 复数用 `_one` / `_other` 等后缀，各语言按自己的规则提供。
 
+## 在线更新
+
+主进程定时检查（启动 10 秒后一次，之后每 4 小时一次），发现新版本时在侧边栏底部、
+设置按钮左侧显示「更新」按钮。整个流程不会自动下载：
+
+1. 用户点「更新」后才开始下载，按钮上显示下载进度；下载完成后用 `latest*.yml` 里的 sha512 校验文件。
+2. 校验通过时，如果没有正在进行的分析，应用会立即关闭并开始安装。
+3. 如果有分析正在进行，就先不安装，按钮变成「安装」，等用户再点一次。用户点击时分析如果还没结束，会弹窗确认是否中止分析。
+
+| 平台 | 下载的文件 | 安装方式 |
+| --- | --- | --- |
+| Windows | `TradingAgents-Setup-<版本>.exe` | 静默运行 NSIS（`--updated /S --force-run`），装完自动重启 |
+| macOS | `TradingAgents-<版本>-arm64-mac.zip` | 由 `ditto` 解压，脱离主进程的脚本在应用退出后替换 `.app`（替换失败会回滚），然后重新打开应用 |
+
+macOS 不走 Squirrel.Mac，因为它要求 Developer ID 签名。由于安装包是应用自己下载的，
+不会带 quarantine 标记，所以只有首次安装时需要执行一次 `xattr`。
+
+如果应用被系统隔离运行（App Translocation），或所在目录不可写，就无法自动替换。
+这时会在访达里显示新版本，并提示用户手动把它拖进「应用程序」文件夹。
+
+**更新源**：在 `electron-builder.yml` 的 `publish` 段配置，打包时会写进应用里的
+`resources/app-update.yml`。目前用的是 GitHub Releases，换成自建静态源时改为
+`provider: generic` 加 `url` 即可。客户端会请求 `<源>/latest*.yml` 和 `<源>/<文件名>`。
+
+**发版**：
+
+1. 修改 `package.json` 的 `version`。
+2. 推送对应的 `v<version>` tag。Package workflow 会打包并创建一个 **draft** release。
+3. 确认无误后手动发布这个 release。在此之前，用户的客户端检测不到新版本。
+
+**本地调试**：
+
+```bash
+python3 -m http.server 8765 -d /path/to/dir-with-latest-yml   # 放 latest-mac.yml 和安装包
+TRADINGAGENTS_UPDATE_URL=http://127.0.0.1:8765 pnpm run dev
+```
+
+开发态可以走通检查和下载两步，到安装这一步会报「当前运行方式不支持安装更新」。
+要验证完整流程，需要用打包好的应用搭配上面的环境变量。
+
 ## 结构
 
 ```
@@ -116,6 +156,7 @@ src/
 │   ├── settings-store.ts    userData/settings.json
 │   ├── keychain.ts          safeStorage 加密的密钥库（只写不读回渲染层）
 │   ├── reports-reader.ts    历史报告目录树
+│   ├── updater/             在线更新：清单解析、下载校验、各平台安装
 │   └── ipc-handlers.ts      渲染层的全部权限面
 ├── preload/index.ts         contextBridge 白名单
 ├── renderer/                React 界面（三栏看板 / 表单 / 设置 / 历史）

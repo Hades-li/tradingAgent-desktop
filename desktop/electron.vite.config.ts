@@ -7,7 +7,9 @@ const shared = resolve(__dirname, 'src/shared')
 
 export default defineConfig({
   main: {
-    plugins: [externalizeDepsPlugin()],
+    // yaml is bundled rather than left in node_modules, so the packaged app
+    // does not depend on electron-builder collecting pnpm's dependency tree.
+    plugins: [externalizeDepsPlugin({ exclude: ['yaml'] })],
     resolve: { alias: { '@shared': shared } },
     build: { rollupOptions: { input: resolve(__dirname, 'src/main/index.ts') } }
   },

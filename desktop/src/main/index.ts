@@ -7,13 +7,13 @@ import { BrowserWindow, app, shell } from 'electron'
 import { mainT } from './i18n'
 import { registerIpcHandlers } from './ipc-handlers'
 import { RunManager, webContentsSink } from './run-manager'
+import { createUpdater, scheduleUpdateChecks } from './updater'
 
 let mainWindow: BrowserWindow | null = null
 
-const runManager = new RunManager(
-  webContentsSink(() => mainWindow?.webContents ?? null),
-  (message) => mainT()('engineStartFailed', { message })
-)
+const sink = webContentsSink(() => mainWindow?.webContents ?? null)
+
+const runManager = new RunManager(sink, (message) => mainT()('engineStartFailed', { message }))
 
 function createWindow(): void {
   mainWindow = new BrowserWindow({
@@ -52,8 +52,14 @@ function createWindow(): void {
 }
 
 app.whenReady().then(() => {
-  registerIpcHandlers(runManager)
+  const updater = createUpdater({
+    publish: (state) => sink('update:changed', state),
+    hasActiveRuns: () => runManager.activeRunIds.length > 0,
+    window: () => mainWindow
+  })
+  registerIpcHandlers(runManager, updater)
   createWindow()
+  if (updater) scheduleUpdateChecks(updater)
 
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) createWindow()

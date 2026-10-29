@@ -1,6 +1,10 @@
 # Desktop installers. Not part of CI: this runs on demand (Actions → Run
 # workflow) or when a v* tag is pushed, because a packaging run is minutes long
 # and costs Windows/macOS runner minutes at 2x/10x the Linux rate.
+#
+# A v* tag also assembles a DRAFT GitHub release. The in-app updater reads
+# releases/latest, which ignores drafts, so nothing reaches users until the
+# draft is published by hand.
 name: Package
 
 on:
@@ -57,9 +61,12 @@ jobs:
         uses: actions/upload-artifact@v7
         with:
           name: TradingAgents-windows-x64
+          # latest.yml is what the in-app updater reads to find and verify
+          # the installer.
           path: |
             desktop/release/*.exe
             desktop/release/*.blockmap
+            desktop/release/latest.yml
           if-no-files-found: error
           retention-days: 14
 
@@ -105,8 +112,45 @@ jobs:
         uses: actions/upload-artifact@v7
         with:
           name: TradingAgents-macos-arm64
+          # The DMG is for first installs; the zip and latest-mac.yml are what
+          # the in-app updater downloads and verifies.
           path: |
             desktop/release/*.dmg
+            desktop/release/*.zip
             desktop/release/*.blockmap
+            desktop/release/latest-mac.yml
           if-no-files-found: error
           retention-days: 14
+
+  release:
+    name: draft release
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: [windows, macos]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Check the tag matches the app version
+        # The updater compares app.getVersion() (package.json) with the version
+        # inside latest*.yml and downloads from the v<version> tag, so a
+        # mismatched tag would publish an update nobody can download.
+        run: |
+          version="v$(node -p "require('./desktop/package.json').version")"
+          if [ "$version" != "$GITHUB_REF_NAME" ]; then
+            echo "Tag $GITHUB_REF_NAME does not match desktop/package.json ($version)" >&2
+            exit 1
+          fi
+
+      - uses: actions/download-artifact@v8
+        with:
+          path: dist
+          merge-multiple: true
+
+      - name: Create the draft release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "$GITHUB_REF_NAME" dist/* \
+            --draft --title "$GITHUB_REF_NAME" --generate-notes

@@ -27,6 +27,7 @@ import {
   SidebarSeparator
 } from '@renderer/components/ui/sidebar'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@renderer/components/ui/tooltip'
+import { UpdateButton } from '@renderer/components/UpdateButton'
 import { cn } from '@renderer/lib/utils'
 import { useDomain } from '@renderer/i18n'
 import { useRunStore } from '@renderer/store/runStore'
@@ -143,22 +144,24 @@ export function Sidebar({ view, onNavigate, historyVersion }: Props): React.JSX.
         <SidebarFooter className="text-muted-foreground flex-row items-center gap-2 px-3 py-2 text-xs">
           <Key className="size-3.5" />
           <span>{t('keyCount', { count: storedKeys })}</span>
-          <Tooltip>
-            <TooltipTrigger
-              render={
-                <Button
-                  variant={view === 'settings' ? 'secondary' : 'ghost'}
-                  size="icon-sm"
-                  className="ml-auto"
-                  aria-label={t('settings')}
-                  onClick={() => onNavigate('settings')}
-                />
-              }
-            >
-              <SettingsIcon />
-            </TooltipTrigger>
-            <TooltipContent>{t('settings')}</TooltipContent>
-          </Tooltip>
+          <div className="ml-auto flex items-center gap-1.5">
+            <UpdateButton />
+            <Tooltip>
+              <TooltipTrigger
+                render={
+                  <Button
+                    variant={view === 'settings' ? 'secondary' : 'ghost'}
+                    size="icon-sm"
+                    aria-label={t('settings')}
+                    onClick={() => onNavigate('settings')}
+                  />
+                }
+              >
+                <SettingsIcon />
+              </TooltipTrigger>
+              <TooltipContent>{t('settings')}</TooltipContent>
+            </Tooltip>
+          </div>
         </SidebarFooter>
       </SidebarRoot>
     </SidebarProvider>

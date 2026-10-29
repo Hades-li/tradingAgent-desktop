@@ -13,6 +13,7 @@ import type {
   SymbolSearchPayload
 } from '@shared/protocol'
 import type { Settings } from '@shared/settings'
+import type { UpdateState } from '@shared/update'
 
 export type KeyState = 'stored' | 'env' | 'missing'
 
@@ -68,6 +69,16 @@ const api = {
     list: () => ipcRenderer.invoke('history:list'),
     read: (id: string) => ipcRenderer.invoke('history:read', id),
     reveal: (path: string) => ipcRenderer.invoke('history:reveal', path)
+  },
+  update: {
+    state: (): Promise<UpdateState> => ipcRenderer.invoke('update:get'),
+    download: (): Promise<void> => ipcRenderer.invoke('update:download'),
+    install: (): Promise<void> => ipcRenderer.invoke('update:install'),
+    onChange: (handler: (state: UpdateState) => void): (() => void) => {
+      const listener = (_e: unknown, state: UpdateState): void => handler(state)
+      ipcRenderer.on('update:changed', listener)
+      return () => ipcRenderer.removeListener('update:changed', listener)
+    }
   }
 }
 

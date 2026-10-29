@@ -1,7 +1,8 @@
 /**
  * The renderer's entire privilege surface. Every handler is explicit: the
  * renderer can start/cancel runs, read and write settings, write (never read)
- * API keys, browse saved reports, and look up market lists and symbols.
+ * API keys, browse saved reports, look up market lists and symbols, and step
+ * an already-discovered update forward (never choose where it comes from).
  */
 
 import { execFile } from 'node:child_process'
@@ -17,6 +18,7 @@ import type {
   SymbolSearchPayload
 } from '@shared/protocol'
 import type { Settings } from '@shared/settings'
+import type { UpdateState } from '@shared/update'
 import { parseEngineReply, TtlCache } from './engine-reply'
 import { buildRunConfig, buildSpawnEnv } from './env-builder'
 import { clearKey, decryptAll, keyStatus, setKey } from './keychain'
@@ -25,6 +27,7 @@ import { mainT } from './i18n'
 import { listReports, readReport, reportDirName } from './reports-reader'
 import type { RunManager } from './run-manager'
 import { loadSettings, saveSettings } from './settings-store'
+import type { Updater } from './updater/updater'
 
 const execFileAsync = promisify(execFile)
 
@@ -78,7 +81,7 @@ async function searchSymbols(market: MarketKey, query: string): Promise<SymbolSe
   return reply as unknown as SymbolSearchPayload
 }
 
-export function registerIpcHandlers(runManager: RunManager): void {
+export function registerIpcHandlers(runManager: RunManager, updater: Updater | null): void {
   ipcMain.handle('settings:get', () => loadSettings())
   ipcMain.handle('settings:save', (_event, settings: Settings) => saveSettings(settings))
   ipcMain.handle('settings:options', () => fetchOptions())
@@ -127,4 +130,8 @@ export function registerIpcHandlers(runManager: RunManager): void {
   ipcMain.handle('history:list', () => listReports(reportsRoot()))
   ipcMain.handle('history:read', (_event, id: string) => readReport(reportsRoot(), id))
   ipcMain.handle('history:reveal', (_event, path: string) => shell.showItemInFolder(path))
+
+  ipcMain.handle('update:get', (): UpdateState => updater?.state ?? { phase: 'idle' })
+  ipcMain.handle('update:download', () => updater?.download())
+  ipcMain.handle('update:install', () => updater?.install())
 }
