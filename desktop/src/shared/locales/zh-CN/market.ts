@@ -1,5 +1,5 @@
 export const market = {
-  title: '选标的',
+  title: '标的选择',
   tabs: {
     us: '美股',
     crypto: '数字货币',

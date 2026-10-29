@@ -1,6 +1,6 @@
 export const sidebar = {
   newAnalysis: '新建分析',
-  market: '选标的',
+  market: '标的选择',
   currentRun: '当前运行',
   history: '历史记录',
   noHistory: '暂无历史',

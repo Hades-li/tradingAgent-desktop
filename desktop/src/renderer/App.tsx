@@ -15,7 +15,7 @@ import { useRunStore } from '@renderer/store/runStore'
 import { useSettingsStore } from '@renderer/store/settingsStore'
 
 export function App(): React.JSX.Element {
-  const [view, setView] = useState<View>('form')
+  const [view, setView] = useState<View>('market')
   const [historyId, setHistoryId] = useState<string | null>(null)
   const [historyVersion, setHistoryVersion] = useState(0)
   const [pickedTicker, setPickedTicker] = useState('')
