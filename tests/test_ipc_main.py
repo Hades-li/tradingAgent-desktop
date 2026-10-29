@@ -223,6 +223,25 @@ class TestMain(unittest.TestCase):
             ["market", "social", "news", "fundamentals"],
         )
 
+    def test_picker_commands_print_one_event(self):
+        listing = {"v": 1, "type": "market_list", "market": "hk", "items": []}
+        found = {"v": 1, "type": "symbol_search", "market": "hk", "query": "x", "items": []}
+        with mock.patch("tradingagents.market_catalog.market_list", return_value=listing) as lister, \
+                mock.patch("tradingagents.market_catalog.symbol_search", return_value=found) as searcher:
+            list_code, list_events = self.call_main(["prog", '{"command": "market_list", "market": "hk"}'])
+            search_code, search_events = self.call_main(
+                ["prog", '{"command": "symbol_search", "market": "hk", "query": "x"}']
+            )
+        lister.assert_called_once_with("hk")
+        searcher.assert_called_once_with("hk", "x")
+        self.assertEqual((list_code, list_events), (0, [listing]))
+        self.assertEqual((search_code, search_events), (0, [found]))
+
+    def test_unknown_market_is_reported_as_an_error(self):
+        code, events = self.call_main(["prog", '{"command": "market_list", "market": "moon"}'])
+        self.assertEqual(code, 1)
+        self.assertEqual(events[0]["type"], "error")
+
     def test_cancellation_is_reported_as_recoverable_and_exits_zero(self):
         def explode(_request):
             raise ipc_main._Cancelled

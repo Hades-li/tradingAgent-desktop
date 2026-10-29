@@ -25,7 +25,7 @@ the two disagree, **this file wins**.
 ```jsonc
 {
   "v": 1,
-  "command": "run",              // "run" (default) | "options"
+  "command": "run",              // "run" (default) | "options" | "market_list" | "symbol_search"
   "runId": "e6c1…",              // optional; generated when absent
   "ticker": "NVDA",
   "date": "2026-01-02",
@@ -45,6 +45,11 @@ renderer must validate number/boolean fields before spawning.
 describing providers, models, analysts and vendor categories, so the settings
 UI never hard-codes a second copy of the catalog.
 
+`command: "market_list"` (with `market`) and `command: "symbol_search"` (with
+`market` and `query`) feed the symbol picker. `market` is one of `us`,
+`crypto`, `hk`, `cn`. Both read Yahoo Finance, so every symbol returned is one
+the run can fetch, and both print a single event.
+
 ## Events
 
 Every event is flat and carries `v`. Consumers must reject unknown `v` values
@@ -61,6 +66,12 @@ ignored (forward compatibility).
 | `run_finished` | `runId`, `signal`, `isReview`, `reportPath?` | always last on success |
 | `error` | `message`, `recoverable`, `code?` | terminal; `code` is `cancelled` \| `failed` |
 | `options` | `providers`, `analysts`, `vendorCategories`, `defaults` | only for `command: "options"` |
+| `market_list` | `market`, `items` | only for `command: "market_list"`; largest names first |
+| `symbol_search` | `market`, `query`, `items` | only for `command: "symbol_search"` |
+
+`items` entries are `{symbol, name, exchange, currency, price, changePercent,
+marketCap}`; everything but `symbol` and `name` may be `null`, and search
+results carry no prices.
 
 ### Sections
 
