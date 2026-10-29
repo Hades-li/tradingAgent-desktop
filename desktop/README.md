@@ -52,6 +52,19 @@ xattr -dr com.apple.quarantine /Applications/TradingAgents.app
 
 应用已内建这条提示：子进程启动后立即非零退出时会在界面上显示该命令。
 
+## 应用图标
+
+源文件是 `resources/icon.svg`，打包用的 `resources/icon.png`（1024px，macOS / Linux）
+和 `resources/icon.ico`（16–256px 多尺寸，Windows 程序、任务栏与 NSIS 安装器）都由它生成。
+改完 SVG 后重新生成并一起提交：
+
+```bash
+pnpm run icons
+```
+
+ICO 比 PNG 裁得更紧（Windows 图标习惯贴边，不留 macOS 那圈安全边距），
+256px 以下的尺寸用 BMP 编码以兼容旧版 Windows 外壳。
+
 ## UI 组件（shadcn）
 
 组件以**源码**形式落在 `src/renderer/components/ui/`，由 CLI 生成，不是运行时依赖。

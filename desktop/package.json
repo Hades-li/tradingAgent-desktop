@@ -15,6 +15,7 @@
     "build": "pnpm run typecheck && electron-vite build",
     "typecheck": "tsc --noEmit -p tsconfig.node.json && tsc --noEmit -p tsconfig.web.json",
     "test": "vitest run",
+    "icons": "electron scripts/generate-icons.mjs",
     "pack:mac": "pnpm run build && electron-builder --mac --dir",
     "dist:mac": "pnpm run build && electron-builder --mac",
     "dist:win": "pnpm run build && electron-builder --win"
