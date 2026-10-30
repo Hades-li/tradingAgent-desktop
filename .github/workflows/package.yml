@@ -62,10 +62,11 @@ jobs:
         with:
           name: TradingAgents-windows-x64
           # latest.yml is what the in-app updater reads to find and verify
-          # the installer.
+          # the installer. No .blockmap: that is electron-updater's
+          # differential-download index, and our own updater always fetches
+          # the whole installer.
           path: |
             desktop/release/*.exe
-            desktop/release/*.blockmap
             desktop/release/latest.yml
           if-no-files-found: error
           retention-days: 14
@@ -113,11 +114,11 @@ jobs:
         with:
           name: TradingAgents-macos-arm64
           # The DMG is for first installs; the zip and latest-mac.yml are what
-          # the in-app updater downloads and verifies.
+          # the in-app updater downloads and verifies. No .blockmap, see the
+          # Windows job.
           path: |
             desktop/release/*.dmg
             desktop/release/*.zip
-            desktop/release/*.blockmap
             desktop/release/latest-mac.yml
           if-no-files-found: error
           retention-days: 14
