@@ -247,16 +247,6 @@ def main(argv: list[str] | None = None) -> int:
         if command == "options":
             emit(options_payload())
             return 0
-        if command == "market_list":
-            from tradingagents.market_catalog import market_list
-
-            emit(market_list(request.get("market")))
-            return 0
-        if command == "symbol_search":
-            from tradingagents.market_catalog import symbol_search
-
-            emit(symbol_search(request.get("market"), request.get("query")))
-            return 0
         return run_command(request)
     except _Cancelled:
         # The run's finally blocks have already torn the checkpointer down.

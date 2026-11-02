@@ -3,10 +3,11 @@
   <head>
     <meta charset="UTF-8" />
     <title>TradingAgents</title>
-    <!-- No remote content: everything ships with the app. -->
+    <!-- No remote content: everything ships with the app. Yahoo Finance is the
+         only remote endpoint, read by the market picker (src/renderer/api). -->
     <meta
       http-equiv="Content-Security-Policy"
-      content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self'"
+      content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self' https://*.yahoo.com"
     />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   </head>

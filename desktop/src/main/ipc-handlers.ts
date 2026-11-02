@@ -1,7 +1,7 @@
 /**
  * The renderer's entire privilege surface. Every handler is explicit: the
  * renderer can start/cancel runs, read and write settings, write (never read)
- * API keys, browse saved reports, look up market lists and symbols, and step
+ * API keys, browse saved reports, and step
  * an already-discovered update forward (never choose where it comes from).
  */
 
@@ -10,16 +10,10 @@ import { randomUUID } from 'node:crypto'
 import { join } from 'node:path'
 import { promisify } from 'node:util'
 import { app, ipcMain, shell } from 'electron'
-import type {
-  MarketKey,
-  MarketListPayload,
-  OptionsPayload,
-  RunRequest,
-  SymbolSearchPayload
-} from '@shared/protocol'
+import type { OptionsPayload, RunRequest } from '@shared/protocol'
 import type { Settings } from '@shared/settings'
 import type { UpdateState } from '@shared/update'
-import { parseEngineReply, TtlCache } from './engine-reply'
+import { parseEngineReply } from './engine-reply'
 import { buildRunConfig, buildSpawnEnv } from './env-builder'
 import { clearKey, decryptAll, keyStatus, setKey } from './keychain'
 import { resolveSidecar, sidecarCwd } from './python-bridge'
@@ -62,25 +56,6 @@ async function fetchOptions(): Promise<OptionsPayload> {
   return reply as unknown as OptionsPayload
 }
 
-const marketLists = new TtlCache<MarketKey, MarketListPayload>(5 * 60 * 1000)
-
-/** Market lists barely move within minutes; caching keeps tab switches instant. */
-async function fetchMarketList(market: MarketKey): Promise<MarketListPayload> {
-  const cached = marketLists.get(market)
-  if (cached) return cached
-  const reply = await queryEngine({ command: 'market_list', market })
-  if (!reply) throw new Error(mainT()('engineNoMarketData'))
-  const payload = reply as unknown as MarketListPayload
-  marketLists.set(market, payload)
-  return payload
-}
-
-async function searchSymbols(market: MarketKey, query: string): Promise<SymbolSearchPayload> {
-  const reply = await queryEngine({ command: 'symbol_search', market, query })
-  if (!reply) throw new Error(mainT()('engineNoMarketData'))
-  return reply as unknown as SymbolSearchPayload
-}
-
 export function registerIpcHandlers(runManager: RunManager, updater: Updater | null): void {
   ipcMain.handle('settings:get', () => loadSettings())
   ipcMain.handle('settings:save', (_event, settings: Settings) => saveSettings(settings))
@@ -121,11 +96,6 @@ export function registerIpcHandlers(runManager: RunManager, updater: Updater | n
   })
 
   ipcMain.handle('run:cancel', (_event, runId: string) => runManager.cancel(runId))
-
-  ipcMain.handle('market:list', (_event, market: MarketKey) => fetchMarketList(market))
-  ipcMain.handle('market:search', (_event, market: MarketKey, query: string) =>
-    searchSymbols(market, query)
-  )
 
   ipcMain.handle('history:list', () => listReports(reportsRoot()))
   ipcMain.handle('history:read', (_event, id: string) => readReport(reportsRoot(), id))

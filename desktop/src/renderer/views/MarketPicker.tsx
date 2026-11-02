@@ -28,7 +28,13 @@ import { ScrollArea } from '@renderer/components/ui/scroll-area'
 import { Skeleton } from '@renderer/components/ui/skeleton'
 import { Tabs, TabsList, TabsTrigger } from '@renderer/components/ui/tabs'
 import { cn } from '@renderer/lib/utils'
-import { MARKET_KEYS, type MarketItem, type MarketKey } from '@shared/protocol'
+import {
+  MARKET_KEYS,
+  marketList,
+  symbolSearch,
+  type MarketItem,
+  type MarketKey
+} from '@renderer/api'
 
 const SEARCH_DELAY_MS = 300
 const SKELETON_ROWS = 8
@@ -53,8 +59,7 @@ function useDebouncedValue<Value>(value: Value, delayMs: number): Value {
 }
 
 function errorText(error: unknown): string {
-  const message = error instanceof Error ? error.message : String(error)
-  return message.replace(/^Error invoking remote method '[^']+': (Error: )?/, '')
+  return error instanceof Error ? error.message : String(error)
 }
 
 function safeFormat(locale: string, options: Intl.NumberFormatOptions, value: number): string {
@@ -112,12 +117,10 @@ export function MarketPicker({ onAnalyze }: Props): React.JSX.Element {
 
   useEffect(() => {
     let active = true
-    const request = search
-      ? window.desktop.market.search(market, search)
-      : window.desktop.market.list(market)
+    const request = search ? symbolSearch(market, search) : marketList(market)
     request.then(
-      (payload) => {
-        if (active) setResult({ key: requestKey, items: payload.items, error: null })
+      (items) => {
+        if (active) setResult({ key: requestKey, items, error: null })
       },
       (error: unknown) => {
         if (active) setResult({ key: requestKey, items: [], error: errorText(error) })
