@@ -13,5 +13,14 @@ export const main = {
   updateInterruptMessage: '分析仍在进行，现在安装会中止它',
   updateInterruptDetail: '应用将关闭并安装 v{{version}}，完成后自动重新打开。',
   updateInterruptConfirm: '中止分析并安装',
-  updateInterruptCancel: '稍后'
+  updateInterruptCancel: '稍后',
+  menuCheckForUpdates: '检查更新…',
+  updateCheckUnavailable: '当前运行方式不支持检查更新',
+  updateCheckFailed: '检查更新失败',
+  updateUpToDate: '已是最新版本',
+  updateUpToDateDetail: '当前版本 v{{version}} 是最新的。',
+  updateAvailable: '发现新版本 v{{version}}',
+  updateAvailableDetail: '当前版本 v{{current}}。下载完成后会自动安装并重新打开应用。',
+  updateDownloadNow: '立即下载',
+  updateInProgress: '正在更新到 v{{version}}，请留意侧边栏的进度'
 } as const

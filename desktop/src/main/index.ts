@@ -4,6 +4,7 @@
 
 import { join } from 'node:path'
 import { BrowserWindow, app, session, shell } from 'electron'
+import { installAppMenu } from './app-menu'
 import { mainT } from './i18n'
 import { registerIpcHandlers } from './ipc-handlers'
 import { RunManager, webContentsSink } from './run-manager'
@@ -82,7 +83,10 @@ app.whenReady().then(() => {
     hasActiveRuns: () => runManager.activeRunIds.length > 0,
     window: () => mainWindow
   })
-  registerIpcHandlers(runManager, updater)
+  const installMenu = (): void => installAppMenu(updater, () => mainWindow)
+  // The menu is native, so it is rebuilt when the interface language may have changed.
+  registerIpcHandlers(runManager, updater, installMenu)
+  installMenu()
   createWindow()
   if (updater) scheduleUpdateChecks(updater)
 

@@ -56,9 +56,17 @@ async function fetchOptions(): Promise<OptionsPayload> {
   return reply as unknown as OptionsPayload
 }
 
-export function registerIpcHandlers(runManager: RunManager, updater: Updater | null): void {
+export function registerIpcHandlers(
+  runManager: RunManager,
+  updater: Updater | null,
+  onSettingsSaved: () => void
+): void {
   ipcMain.handle('settings:get', () => loadSettings())
-  ipcMain.handle('settings:save', (_event, settings: Settings) => saveSettings(settings))
+  ipcMain.handle('settings:save', (_event, settings: Settings) => {
+    const saved = saveSettings(settings)
+    onSettingsSaved()
+    return saved
+  })
   ipcMain.handle('settings:options', () => fetchOptions())
 
   ipcMain.handle('keys:status', (_event, names: string[]) => keyStatus(names))

@@ -13,5 +13,14 @@ export const main = {
   updateInterruptMessage: 'An analysis is still running and installing now will stop it',
   updateInterruptDetail: 'The app will close, install v{{version}} and reopen when done.',
   updateInterruptConfirm: 'Stop analysis and install',
-  updateInterruptCancel: 'Later'
+  updateInterruptCancel: 'Later',
+  menuCheckForUpdates: 'Check for Updates…',
+  updateCheckUnavailable: 'Updates cannot be checked in this build',
+  updateCheckFailed: 'Could not check for updates',
+  updateUpToDate: 'You’re up to date',
+  updateUpToDateDetail: 'v{{version}} is the latest version.',
+  updateAvailable: 'Version v{{version}} is available',
+  updateAvailableDetail: 'You have v{{current}}. Once downloaded, the update installs and the app reopens.',
+  updateDownloadNow: 'Download',
+  updateInProgress: 'Updating to v{{version}}; see the sidebar for progress'
 }
