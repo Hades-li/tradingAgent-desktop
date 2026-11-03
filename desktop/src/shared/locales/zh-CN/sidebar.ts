@@ -1,5 +1,5 @@
 export const sidebar = {
-  newAnalysis: '新建分析',
+  newAnalysis: '自定义标的',
   market: '标的选择',
   currentRun: '当前运行',
   history: '历史记录',

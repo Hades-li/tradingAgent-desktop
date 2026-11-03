@@ -70,7 +70,7 @@ export function Sidebar({ view, onNavigate, historyVersion }: Props): React.JSX.
       <SidebarRoot collapsible="none" className="border-r">
         <SidebarHeader className="gap-0 p-0">
           <div className="drag-region h-9" />
-          <div className="px-2 pb-2">
+          <div className="px-2 py-2">
             <Button className="no-drag w-full" onClick={() => onNavigate('form')}>
               <Plus />
               {t('newAnalysis')}

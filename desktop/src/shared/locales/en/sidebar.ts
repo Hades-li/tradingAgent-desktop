@@ -1,5 +1,5 @@
 export const sidebar = {
-  newAnalysis: 'New analysis',
+  newAnalysis: 'Custom ticker',
   market: 'Browse symbols',
   currentRun: 'Current run',
   history: 'History',
