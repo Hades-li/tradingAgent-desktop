@@ -10,13 +10,12 @@ directories:
 files:
   - out/**
   - package.json
-# Only keep the Chromium locales the UI is translated into. Matching is
-# "wanted starts with file name", so list both spellings: macOS uses en.lproj /
-# zh_CN.lproj, Windows and Linux use en-US.pak / zh-CN.pak.
+# Only keep the Chromium locales the UI is translated into. electron-builder
+# treats "-" and "_" alike, and a region-qualified name also keeps the bare one,
+# so these match macOS en.lproj / zh_CN.lproj and Windows en-US.pak / zh-CN.pak.
+# A bare "en" would keep every en-* variant (en_GB, ...).
 electronLanguages:
-  - en
   - en-US
-  - zh_CN
   - zh-CN
 # dmg -> UDBZ, zip / nsis -> max level. Slower to build, smaller to download.
 compression: maximum

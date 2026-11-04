@@ -13,14 +13,14 @@ export default defineConfig({
       // devDependencies, so electron-builder ships no node_modules at all;
       // leaving one external would make it missing at runtime.
       externalizeDeps: false,
-      rollupOptions: { input: resolve(__dirname, 'src/main/index.ts') }
+      rolldownOptions: { input: resolve(__dirname, 'src/main/index.ts') }
     }
   },
   preload: {
     resolve: { alias: { '@shared': shared } },
     build: {
       externalizeDeps: false,
-      rollupOptions: { input: resolve(__dirname, 'src/preload/index.ts') }
+      rolldownOptions: { input: resolve(__dirname, 'src/preload/index.ts') }
     }
   },
   renderer: {
@@ -33,7 +33,10 @@ export default defineConfig({
       // Renderer root is src/renderer, so outDir must be pinned back to
       // desktop/out or the bundle lands outside the project.
       outDir: resolve(__dirname, 'out/renderer'),
-      rollupOptions: { input: resolve(__dirname, 'src/renderer/index.html') }
+      // electron-vite defaults the renderer to minify: false. Minifying cuts
+      // the JS bundle from ~2.0MB to ~0.9MB and the CSS by a sixth.
+      minify: true,
+      rolldownOptions: { input: resolve(__dirname, 'src/renderer/index.html') }
     }
   }
 })

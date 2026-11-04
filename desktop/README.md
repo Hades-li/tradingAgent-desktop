@@ -31,12 +31,16 @@ pnpm run pack:mac              # 只出 .app，自用足够
 pnpm run dist:mac              # 出 DMG
 ```
 
-实测体积（arm64，0.2.5）：sidecar 112MB、`TradingAgents.app` 365MB、DMG 161MB、
-更新用 zip 171MB（0.2.4 分别为 510MB / 200MB / 201MB）。保持体积靠这几条：
+实测体积（arm64，0.2.6）：sidecar 112MB、`TradingAgents.app` 385MB、DMG 163MB、
+更新用 zip 169MB（0.2.4 分别为 510MB / 200MB / 201MB）。`.app` 比 0.2.5 多出的
+约 19MB 是 electron-builder 26.18 起按许可证要求保留的 `LICENSES.chromium.html`，
+压缩后几乎不占体积。保持体积靠这几条：
 
 - **npm 包全部放在 `devDependencies`**。main / preload / renderer 都由 electron-vite
   打进 `out/`（`externalizeDeps: false`），`app.asar` 里只有 `out/` 和 `package.json`。
   放进 `dependencies` 的包会被 electron-builder 连同整棵依赖树拷进 asar。
+- **renderer 开启 `minify`**：electron-vite 默认不压缩 renderer，开启后 JS 从
+  约 2.0MB 降到 0.9MB。main / preload 保持不压缩，方便看报错堆栈。
 - **只保留中英文 Chromium 语言包**（`electronLanguages`），新增界面语言时要同步加上。
 - **`compression: maximum`**：DMG 用 bzip2（UDBZ），zip / NSIS 用最高压缩级别。
 - **sidecar 显式 `--exclude-module`** 掉 `rich` / `pygments` / `pytest` / `setuptools`：
