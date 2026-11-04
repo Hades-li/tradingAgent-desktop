@@ -31,9 +31,17 @@ pnpm run pack:mac              # 只出 .app，自用足够
 pnpm run dist:mac              # 出 DMG
 ```
 
-实测体积（arm64）：sidecar 140MB、`TradingAgents.app` 472MB。`rich` / `pygments` /
-`typer` / `questionary` 因入口指向 `tradingagents.ipc_main` 而被自动排除，无需显式
-`--exclude-module`。
+实测体积（arm64，0.2.5）：sidecar 112MB、`TradingAgents.app` 365MB、DMG 161MB、
+更新用 zip 171MB（0.2.4 分别为 510MB / 200MB / 201MB）。保持体积靠这几条：
+
+- **npm 包全部放在 `devDependencies`**。main / preload / renderer 都由 electron-vite
+  打进 `out/`（`externalizeDeps: false`），`app.asar` 里只有 `out/` 和 `package.json`。
+  放进 `dependencies` 的包会被 electron-builder 连同整棵依赖树拷进 asar。
+- **只保留中英文 Chromium 语言包**（`electronLanguages`），新增界面语言时要同步加上。
+- **`compression: maximum`**：DMG 用 bzip2（UDBZ），zip / NSIS 用最高压缩级别。
+- **sidecar 显式 `--exclude-module`** 掉 `rich` / `pygments` / `pytest` / `setuptools`：
+  它们只被可选或延迟导入拖进来。`typer` / `questionary` 因入口指向
+  `tradingagents.ipc_main` 而被自动排除。
 
 **打包态不读仓库的 `.env`**：密钥必须在设置界面里存进系统钥匙串，否则运行会以
 `error` 事件报 401。开发态则仍可用 `.env` 兜底，并在界面上标注「已配置（来自 .env）」。

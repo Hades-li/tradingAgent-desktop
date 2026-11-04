@@ -3,9 +3,23 @@ productName: TradingAgents
 directories:
   output: release
   buildResources: resources
+# Everything the app runs is bundled into out/ by electron-vite, and every npm
+# package is a devDependency, so app.asar holds no node_modules. Moving a
+# package back to "dependencies" makes electron-builder copy its whole tree
+# (0.2.4 shipped ~94MB of lucide-react / shadcn / ts-morph that way).
 files:
   - out/**
   - package.json
+# Only keep the Chromium locales the UI is translated into. Matching is
+# "wanted starts with file name", so list both spellings: macOS uses en.lproj /
+# zh_CN.lproj, Windows and Linux use en-US.pak / zh-CN.pak.
+electronLanguages:
+  - en
+  - en-US
+  - zh_CN
+  - zh-CN
+# dmg -> UDBZ, zip / nsis -> max level. Slower to build, smaller to download.
+compression: maximum
 # The PyInstaller --onedir bundle is copied here by scripts/build-sidecar.sh
 # BEFORE electron-builder runs, so the app is signed as one unit. Signing the
 # sidecar afterwards invalidates the outer signature and arm64 refuses to launch.

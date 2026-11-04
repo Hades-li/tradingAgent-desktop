@@ -1,22 +1,27 @@
 import { resolve } from 'node:path'
 import tailwindcss from '@tailwindcss/vite'
 import react from '@vitejs/plugin-react'
-import { defineConfig, externalizeDepsPlugin } from 'electron-vite'
+import { defineConfig } from 'electron-vite'
 
 const shared = resolve(__dirname, 'src/shared')
 
 export default defineConfig({
   main: {
-    // yaml is bundled rather than left in node_modules, so the packaged app
-    // does not depend on electron-builder collecting pnpm's dependency tree.
-    plugins: [externalizeDepsPlugin({ exclude: ['yaml'] })],
     resolve: { alias: { '@shared': shared } },
-    build: { rollupOptions: { input: resolve(__dirname, 'src/main/index.ts') } }
+    build: {
+      // Bundle every third-party module into out/. All packages are
+      // devDependencies, so electron-builder ships no node_modules at all;
+      // leaving one external would make it missing at runtime.
+      externalizeDeps: false,
+      rollupOptions: { input: resolve(__dirname, 'src/main/index.ts') }
+    }
   },
   preload: {
-    plugins: [externalizeDepsPlugin()],
     resolve: { alias: { '@shared': shared } },
-    build: { rollupOptions: { input: resolve(__dirname, 'src/preload/index.ts') } }
+    build: {
+      externalizeDeps: false,
+      rollupOptions: { input: resolve(__dirname, 'src/preload/index.ts') }
+    }
   },
   renderer: {
     root: resolve(__dirname, 'src/renderer'),

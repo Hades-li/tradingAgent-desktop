@@ -51,8 +51,12 @@ mkdir -p "$outdir"
 # fails inside the bundle. langchain / langchain_community are no longer
 # dependencies as of TradingAgents 0.6.0.
 #
-# cli/ is deliberately not an entry point, so rich / pygments / typer /
-# questionary fall out of the dependency graph on their own.
+# cli/ is deliberately not an entry point, so typer / questionary fall out of
+# the dependency graph on their own. rich / pygments still get pulled in by
+# optional or delayed imports (httpx's CLI, pydantic's schema pretty-printer),
+# pytest by langsmith's test helpers and pandas._testing, and setuptools by
+# PyInstaller's own runtime hook; none of them run inside the sidecar, so they
+# are excluded explicitly.
 "$python" -m PyInstaller \
   --noconfirm \
   --onedir \
@@ -70,6 +74,12 @@ mkdir -p "$outdir"
   --collect-all stockstats \
   --collect-data tradingagents \
   --hidden-import tradingagents.ipc_main \
+  --exclude-module rich \
+  --exclude-module pygments \
+  --exclude-module pytest \
+  --exclude-module _pytest \
+  --exclude-module setuptools \
+  --exclude-module pkg_resources \
   "$here/scripts/sidecar_entry.py"
 
 mv "$outdir/tradingagents-sidecar" "$outdir/sidecar"
