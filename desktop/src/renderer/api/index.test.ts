@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { belongsTo, symbolSearch, toItem, type YahooQuote } from './index'
+import { belongsTo, symbolSearch, toItem, usesChineseNames, type YahooQuote } from './index'
 
 function quote(symbol: string, quoteType = 'EQUITY', exchange = 'NMS', extra: YahooQuote = {}) {
   return { symbol, quoteType, exchange, ...extra }
@@ -43,6 +43,29 @@ describe('toItem', () => {
       marketCap: null
     })
     expect(toItem({ symbol: 'X' }).name).toBe('X')
+  })
+
+  it('prefers the English short name by default', () => {
+    expect(toItem({ symbol: '0700.HK', shortName: 'TENCENT', longName: '腾讯控股' }).name).toBe(
+      'TENCENT'
+    )
+  })
+
+  it('takes the Chinese long name and folds full-width letters when asked', () => {
+    expect(
+      toItem({ symbol: '9988.HK', shortName: 'BABA-W', longName: '阿里巴巴－Ｗ' }, true).name
+    ).toBe('阿里巴巴-W')
+    expect(toItem({ symbol: '601939.SS', shortName: 'CCB' }, true).name).toBe('CCB')
+  })
+})
+
+describe('usesChineseNames', () => {
+  it('applies only to Hong Kong and A-shares under a Chinese locale', () => {
+    expect(usesChineseNames('cn', 'zh-CN')).toBe(true)
+    expect(usesChineseNames('hk', 'zh-CN')).toBe(true)
+    expect(usesChineseNames('us', 'zh-CN')).toBe(false)
+    expect(usesChineseNames('crypto', 'zh-CN')).toBe(false)
+    expect(usesChineseNames('cn', 'en')).toBe(false)
   })
 })
 

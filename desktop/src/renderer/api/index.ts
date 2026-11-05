@@ -48,6 +48,10 @@ interface SearchResponse {
   quotes?: YahooQuote[]
 }
 
+interface QuoteResponse {
+  quoteResponse: { result: YahooQuote[] | null }
+}
+
 const LIST_SIZE = 50
 const SEARCH_SIZE = 25
 const LIST_TTL_MS = 5 * 60 * 1000
@@ -71,7 +75,21 @@ const query2 = axios.create({
   timeout: 15_000
 })
 
-const SCREENER_PARAMS = { formatted: false, lang: 'en-US', region: 'US' }
+const SCREENER_PARAMS = { formatted: false }
+const ENGLISH_PARAMS = { lang: 'en-US', region: 'US' }
+const CHINESE_PARAMS = { lang: 'zh-CN', region: 'CN' }
+
+/** Markets where a bare numeric code says little, so the picker leads with the name. */
+export const NAME_FIRST_MARKETS: readonly MarketKey[] = ['hk', 'cn']
+
+/** Yahoo carries Chinese names for these markets in `longName` when asked in zh-CN. */
+export function usesChineseNames(market: MarketKey, locale: string): boolean {
+  return NAME_FIRST_MARKETS.includes(market) && locale.startsWith('zh')
+}
+
+function localeParams(market: MarketKey, locale: string): Record<string, string> {
+  return usesChineseNames(market, locale) ? CHINESE_PARAMS : ENGLISH_PARAMS
+}
 
 /** True when a Yahoo quote is something the picker should list under `market`. */
 export function belongsTo(market: MarketKey, quote: YahooQuote): boolean {
@@ -88,11 +106,20 @@ export function belongsTo(market: MarketKey, quote: YahooQuote): boolean {
   return US_EXCHANGES.includes(quote.exchange ?? '')
 }
 
-export function toItem(quote: YahooQuote): MarketItem {
+/**
+ * With `chineseNames`, `longName` holds the Chinese name while `shortName` stays an
+ * English abbreviation; NFKC folds the full-width letters Yahoo uses in suffixes like -W.
+ */
+export function toItem(quote: YahooQuote, chineseNames = false): MarketItem {
   const symbol = quote.symbol ?? ''
+  const name = chineseNames
+    ? (quote.longName || quote.shortName || quote.longname || quote.shortname || symbol).normalize(
+        'NFKC'
+      )
+    : quote.shortName || quote.longName || quote.shortname || quote.longname || symbol
   return {
     symbol,
-    name: quote.shortName || quote.longName || quote.shortname || quote.longname || symbol,
+    name,
     exchange: quote.fullExchangeName || quote.exchDisp || quote.exchange || null,
     currency: quote.currency ?? null,
     price: quote.regularMarketPrice ?? null,
@@ -133,7 +160,22 @@ function equityQuery(market: Exclude<MarketKey, 'crypto'>): Record<string, unkno
   }
 }
 
-async function screenEquities(market: Exclude<MarketKey, 'crypto'>): Promise<YahooQuote[]> {
+/** Runs a crumb-bound request, fetching a fresh crumb once if Yahoo rejects the old one. */
+async function withCrumb<Value>(request: (crumb: string) => Promise<Value>): Promise<Value> {
+  try {
+    return await request(await crumb())
+  } catch (error) {
+    // A crumb outlives its cookie only so long; fetch a fresh pair once.
+    if (!isUnauthorized(error)) throw error
+    crumbRequest = null
+    return request(await crumb())
+  }
+}
+
+async function screenEquities(
+  market: Exclude<MarketKey, 'crypto'>,
+  locale: string
+): Promise<YahooQuote[]> {
   const body = {
     offset: 0,
     size: LIST_SIZE,
@@ -144,44 +186,58 @@ async function screenEquities(market: Exclude<MarketKey, 'crypto'>): Promise<Yah
     userIdType: 'guid',
     query: equityQuery(market)
   }
-  const post = async (): Promise<YahooQuote[]> => {
+  return withCrumb(async (crumb) => {
     const { data } = await query1.post<ScreenerResponse>('/v1/finance/screener', body, {
-      params: { ...SCREENER_PARAMS, crumb: await crumb() }
+      params: { ...SCREENER_PARAMS, ...localeParams(market, locale), crumb }
     })
     return data.finance.result?.[0]?.quotes ?? []
-  }
-  try {
-    return await post()
-  } catch (error) {
-    // A crumb outlives its cookie only so long; fetch a fresh pair once.
-    if (!isUnauthorized(error)) throw error
-    crumbRequest = null
-    return post()
-  }
+  })
 }
 
 /** Yahoo's predefined crypto screen has no paging, so this is the largest page it gives. */
 async function screenCrypto(): Promise<YahooQuote[]> {
   const { data } = await query1.get<ScreenerResponse>('/v1/finance/screener/predefined/saved', {
-    params: { ...SCREENER_PARAMS, scrIds: CRYPTO_SCREEN, count: LIST_SIZE }
+    params: { ...SCREENER_PARAMS, ...ENGLISH_PARAMS, scrIds: CRYPTO_SCREEN, count: LIST_SIZE }
   })
   return data.finance.result?.[0]?.quotes ?? []
 }
 
-const marketLists = new TtlCache<MarketKey, MarketItem[]>(LIST_TTL_MS)
+/** Full quotes for `symbols`, in Chinese; search results alone carry only English names. */
+async function chineseQuotes(symbols: string[]): Promise<YahooQuote[]> {
+  return withCrumb(async (crumb) => {
+    const { data } = await query1.get<QuoteResponse>('/v7/finance/quote', {
+      params: { symbols: symbols.join(','), ...CHINESE_PARAMS, crumb }
+    })
+    return data.quoteResponse.result ?? []
+  })
+}
+
+const marketLists = new TtlCache<string, MarketItem[]>(LIST_TTL_MS)
 
 /** The largest names in `market` by market cap. Cached briefly so tab switches stay instant. */
-export async function marketList(market: MarketKey): Promise<MarketItem[]> {
-  const cached = marketLists.get(market)
+export async function marketList(market: MarketKey, locale = 'en'): Promise<MarketItem[]> {
+  const chineseNames = usesChineseNames(market, locale)
+  const cacheKey = `${market}|${chineseNames ? 'zh' : 'en'}`
+  const cached = marketLists.get(cacheKey)
   if (cached) return cached
-  const quotes = market === 'crypto' ? await screenCrypto() : await screenEquities(market)
-  const items = quotes.filter((quote) => belongsTo(market, quote)).map(toItem)
-  marketLists.set(market, items)
+  const quotes = market === 'crypto' ? await screenCrypto() : await screenEquities(market, locale)
+  const items = quotes
+    .filter((quote) => belongsTo(market, quote))
+    .map((quote) => toItem(quote, chineseNames))
+  marketLists.set(cacheKey, items)
   return items
 }
 
-/** Yahoo symbol search narrowed to `market`; search results carry no prices. */
-export async function symbolSearch(market: MarketKey, query: string): Promise<MarketItem[]> {
+/**
+ * Yahoo symbol search narrowed to `market`. Plain search results carry no prices;
+ * where Chinese names apply they are swapped for full quotes, falling back to the
+ * plain results if that lookup fails, since names are not worth failing a search.
+ */
+export async function symbolSearch(
+  market: MarketKey,
+  query: string,
+  locale = 'en'
+): Promise<MarketItem[]> {
   const text = query.trim()
   if (!text) return []
   const { data } = await query2.get<SearchResponse>('/v1/finance/search', {
@@ -194,7 +250,15 @@ export async function symbolSearch(market: MarketKey, query: string): Promise<Ma
       quotesQueryId: 'tss_match_phrase_query'
     }
   })
-  return (data.quotes ?? [])
-    .filter((quote) => quote.symbol && belongsTo(market, quote))
-    .map(toItem)
+  const matches = (data.quotes ?? []).filter((quote) => quote.symbol && belongsTo(market, quote))
+  if (!usesChineseNames(market, locale) || matches.length === 0) {
+    return matches.map((quote) => toItem(quote))
+  }
+  try {
+    const quotes = await chineseQuotes(matches.map((quote) => quote.symbol ?? ''))
+    const bySymbol = new Map(quotes.map((quote) => [quote.symbol, quote]))
+    return matches.map((quote) => toItem(bySymbol.get(quote.symbol) ?? quote, true))
+  } catch {
+    return matches.map((quote) => toItem(quote))
+  }
 }

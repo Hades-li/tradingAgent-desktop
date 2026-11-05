@@ -30,6 +30,7 @@ import { Tabs, TabsList, TabsTrigger } from '@renderer/components/ui/tabs'
 import { cn } from '@renderer/lib/utils'
 import {
   MARKET_KEYS,
+  NAME_FIRST_MARKETS,
   marketList,
   symbolSearch,
   type MarketItem,
@@ -110,14 +111,15 @@ export function MarketPicker({ onAnalyze }: Props): React.JSX.Element {
   const [selected, setSelected] = useState<MarketItem | null>(null)
   const [result, setResult] = useState<Result | null>(null)
   const search = useDebouncedValue(query.trim(), SEARCH_DELAY_MS)
-  const requestKey = `${market}|${search}|${attempt}`
+  const locale = i18n.language
+  const requestKey = `${market}|${locale}|${search}|${attempt}`
   const loading = result?.key !== requestKey
   const items = loading ? [] : result.items
-  const locale = i18n.language
+  const nameFirst = NAME_FIRST_MARKETS.includes(market)
 
   useEffect(() => {
     let active = true
-    const request = search ? symbolSearch(market, search) : marketList(market)
+    const request = search ? symbolSearch(market, search, locale) : marketList(market, locale)
     request.then(
       (items) => {
         if (active) setResult({ key: requestKey, items, error: null })
@@ -129,7 +131,7 @@ export function MarketPicker({ onAnalyze }: Props): React.JSX.Element {
     return () => {
       active = false
     }
-  }, [requestKey, market, search])
+  }, [requestKey, market, search, locale])
 
   const changeMarket = (value: MarketKey): void => {
     setMarket(value)
@@ -230,6 +232,8 @@ export function MarketPicker({ onAnalyze }: Props): React.JSX.Element {
                 const price = formatPrice(item, locale)
                 const change = formatChange(item, locale)
                 const marketCap = formatMarketCap(item, locale)
+                const title = nameFirst ? item.name : item.symbol
+                const subtitle = nameFirst ? item.symbol : item.name
                 return (
                   <Item
                     key={item.symbol}
@@ -247,10 +251,12 @@ export function MarketPicker({ onAnalyze }: Props): React.JSX.Element {
                   >
                     <ItemContent className="min-w-0">
                       <ItemTitle>
-                        {item.symbol}
+                        {title}
                         {item.exchange && <Badge variant="outline">{item.exchange}</Badge>}
                       </ItemTitle>
-                      <ItemDescription className="line-clamp-1">{item.name}</ItemDescription>
+                      {subtitle !== title && (
+                        <ItemDescription className="line-clamp-1">{subtitle}</ItemDescription>
+                      )}
                     </ItemContent>
                     {price && (
                       <div className="flex shrink-0 flex-col items-end gap-0.5 tabular-nums">
