@@ -67,6 +67,38 @@
 
 ---
 
+## 0'''. 升级到 TradingAgents 0.7.1（2026-11-13）
+
+内置引擎从 0.6.0 升到 0.7.1（经 0.7.0），沿用 0.6.0 的做法分两次提交：先原样导入上游
+（`Import TradingAgents 0.7.1 unmodified`，即上游 `v0.6.0..v0.7.1` 的差异，三方应用
+零冲突），再单独提交适配。导入后除 `.github/`、`.gitignore` 与 `pyproject.toml` 的
+ruff 排除项外，所有上游文件与 `v0.7.1` 逐字一致。
+
+**不导入的上游文件**：`.github/workflows/release-assets.yml`。它在 Release 发布时
+构建 wheel 并上传，而本仓库的 Release 是桌面安装包，不需要也不应该跑它。
+
+适配点：
+
+1. **sidecar 无需改动**。上游 `cli/run.py` 只改了推理参数的合并（某一档模型在别的
+   提供方时保留其推理设置），`session.py` 的配置来自 `TRADINGAGENTS_*` 环境变量，
+   本就不覆盖未设置的项；`create_run_state` 新增的日期校验对桌面端传入的
+   `YYYY-MM-DD` 无影响。
+2. **新提供方 `chatgpt`**（ChatGPT Plus/Pro 订阅，无 API Key）会自动出现在设置的
+   提供方列表里，推理强度与 `openai` 共用 `TRADINGAGENTS_OPENAI_REASONING_EFFORT`，
+   设置界面已对它显示该选项。登录凭据存于 `~/.tradingagents/chatgpt-auth.json`，
+   桌面端暂无登录界面，需先在命令行执行 `tradingagents login chatgpt`；模型目录对它
+   只有"自定义"，需手填模型 ID。
+3. **依赖**：新增 `cryptography>=42`、`packaging>=24`。`.venv` 需重装
+   （`uv pip install -e ".[dev]"`）。打包脚本未改，打包态 sidecar 尚未重新构建验证。
+4. **行为变化**：决策改按决策日之后的第一个收盘价评分；旧 memory log 里已结算的
+   结果保留旧口径。启动时的版本更新提示只在交互式 CLI 中出现，sidecar 不受影响。
+
+验证：pytest **1453 passed**（1 条 bedrock 用例因未装 `langchain_aws` 跳过；
+`tests/test_chatgpt_auth.py` 需要监听本机端口，受限沙箱内会失败），前端 92 条 vitest
+与类型检查通过，sidecar `options` 正常返回含 `chatgpt` 的目录。
+
+---
+
 ## 0''. 升级到 TradingAgents 0.6.0（2026-10-09）
 
 内置引擎从 0.4.0 升到 0.6.0（经 0.5.0 / 0.5.1 / 0.5.2）。下文第 1 节起的文件路径、

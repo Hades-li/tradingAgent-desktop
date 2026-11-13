@@ -413,7 +413,8 @@ function ReasoningControls(): React.JSX.Element {
   const { settings, update } = useSettingsStore()
   const provider = settings.llmProvider
 
-  if (provider === 'openai') {
+  // The chatgpt (ChatGPT plan) provider takes OpenAI's reasoning effort too.
+  if (provider === 'openai' || provider === 'chatgpt') {
     return (
       <Field>
         <FieldLabel htmlFor="effort">{t('reasoning.effort.openai')}</FieldLabel>
