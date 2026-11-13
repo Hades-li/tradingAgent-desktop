@@ -6,6 +6,7 @@
 
 import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
+import { RefreshCw } from 'lucide-react'
 import { Alert, AlertDescription, AlertTitle } from '@renderer/components/ui/alert'
 import { Badge } from '@renderer/components/ui/badge'
 import { Button } from '@renderer/components/ui/button'
@@ -36,13 +37,16 @@ import {
   SelectContent,
   SelectGroup,
   SelectItem,
+  SelectLabel,
+  SelectSeparator,
   SelectTrigger,
   SelectValue
 } from '@renderer/components/ui/select'
 import { Slider } from '@renderer/components/ui/slider'
 import { Switch } from '@renderer/components/ui/switch'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@renderer/components/ui/tabs'
-import { useSettingsStore } from '@renderer/store/settingsStore'
+import { modelChoices, modelsForProvider } from '@renderer/lib/model-choice'
+import { endpointSource, useSettingsStore } from '@renderer/store/settingsStore'
 import { LOCALES, type UiLanguage } from '@shared/i18n/locales'
 import { CUSTOM_ENDPOINT_PROVIDERS } from '@shared/settings'
 
@@ -58,7 +62,6 @@ export function SettingsView(): React.JSX.Element {
     useSettingsStore()
   const [saved, setSaved] = useState(false)
 
-  const provider = options?.providers.find((item) => item.id === settings.llmProvider)
   const showEndpoint = CUSTOM_ENDPOINT_PROVIDERS.includes(settings.llmProvider)
   const interfaceLanguages = [
     { label: tCommon('language.system'), value: 'system' },
@@ -108,7 +111,11 @@ export function SettingsView(): React.JSX.Element {
                   <Select
                     items={providerItems}
                     value={settings.llmProvider}
-                    onValueChange={(value) => update({ llmProvider: value as string })}
+                    onValueChange={(value) => {
+                      const next = value as string
+                      const nextProvider = options?.providers.find((item) => item.id === next)
+                      update({ llmProvider: next, ...modelsForProvider(nextProvider, settings) })
+                    }}
                   >
                     <SelectTrigger id="provider">
                       <SelectValue />
@@ -167,36 +174,7 @@ export function SettingsView(): React.JSX.Element {
         </TabsContent>
 
         <TabsContent value="model" className="flex flex-col gap-4">
-          <Card>
-            <CardHeader>
-              <CardTitle>{t('models.title')}</CardTitle>
-              <CardDescription>{t('models.description')}</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <FieldGroup className="grid grid-cols-2 gap-4">
-                <Field>
-                  <FieldLabel htmlFor="deep-model">{t('models.deep')}</FieldLabel>
-                  <ModelInput
-                    id="deep-model"
-                    value={settings.deepThinkLlm}
-                    options={provider?.deepModels ?? []}
-                    onChange={(value) => update({ deepThinkLlm: value })}
-                  />
-                  <FieldDescription>TRADINGAGENTS_DEEP_THINK_LLM</FieldDescription>
-                </Field>
-                <Field>
-                  <FieldLabel htmlFor="quick-model">{t('models.quick')}</FieldLabel>
-                  <ModelInput
-                    id="quick-model"
-                    value={settings.quickThinkLlm}
-                    options={provider?.quickModels ?? []}
-                    onChange={(value) => update({ quickThinkLlm: value })}
-                  />
-                  <FieldDescription>TRADINGAGENTS_QUICK_THINK_LLM</FieldDescription>
-                </Field>
-              </FieldGroup>
-            </CardContent>
-          </Card>
+          <ModelRoles />
 
           <Card>
             <CardHeader>
@@ -515,33 +493,177 @@ function EffortSelect({
   )
 }
 
-function ModelInput({
+function ModelRoles(): React.JSX.Element {
+  const { t } = useTranslation('settings')
+  const {
+    settings,
+    options,
+    update,
+    endpointModels,
+    endpointModelsLoading,
+    endpointModelsError,
+    fetchEndpointModels
+  } = useSettingsStore()
+  const provider = options?.providers.find((item) => item.id === settings.llmProvider)
+  const canDiscover = CUSTOM_ENDPOINT_PROVIDERS.includes(settings.llmProvider)
+  const source = endpointSource(settings)
+  const discovered = endpointModels?.source === source ? endpointModels.models : []
+
+  // Ask the endpoint once per provider/URL as soon as this tab is shown.
+  useEffect(() => {
+    if (!canDiscover || endpointModels?.source === source) return
+    void fetchEndpointModels()
+  }, [canDiscover, source])
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle>{t('models.title')}</CardTitle>
+        <CardDescription>{t('models.description')}</CardDescription>
+      </CardHeader>
+      <CardContent>
+        <FieldGroup>
+          {canDiscover && (
+            <div className="flex items-center gap-3">
+              <Button
+                variant="outline"
+                size="sm"
+                disabled={endpointModelsLoading}
+                onClick={() => void fetchEndpointModels()}
+              >
+                <RefreshCw className={endpointModelsLoading ? 'animate-spin' : undefined} />
+                {t('models.discover')}
+              </Button>
+              <span
+                className={
+                  endpointModelsError ? 'text-destructive text-sm' : 'text-muted-foreground text-sm'
+                }
+              >
+                {endpointModelsLoading
+                  ? t('models.discovering')
+                  : endpointModelsError ??
+                    (endpointModels?.source === source
+                      ? t('models.discovered', { count: discovered.length })
+                      : t('models.discoverHint'))}
+              </span>
+            </div>
+          )}
+          <FieldGroup className="grid grid-cols-2 gap-4">
+            <Field>
+              <FieldLabel htmlFor="deep-model">{t('models.deep')}</FieldLabel>
+              <ModelSelect
+                key={settings.llmProvider}
+                id="deep-model"
+                value={settings.deepThinkLlm}
+                catalog={provider?.deepModels ?? []}
+                discovered={discovered}
+                onChange={(value) => update({ deepThinkLlm: value })}
+              />
+              <FieldDescription>TRADINGAGENTS_DEEP_THINK_LLM</FieldDescription>
+            </Field>
+            <Field>
+              <FieldLabel htmlFor="quick-model">{t('models.quick')}</FieldLabel>
+              <ModelSelect
+                key={settings.llmProvider}
+                id="quick-model"
+                value={settings.quickThinkLlm}
+                catalog={provider?.quickModels ?? []}
+                discovered={discovered}
+                onChange={(value) => update({ quickThinkLlm: value })}
+              />
+              <FieldDescription>TRADINGAGENTS_QUICK_THINK_LLM</FieldDescription>
+            </Field>
+          </FieldGroup>
+        </FieldGroup>
+      </CardContent>
+    </Card>
+  )
+}
+
+const CUSTOM_CHOICE = '__custom__'
+
+function ModelSelect({
   id,
   value,
-  options,
+  catalog,
+  discovered,
   onChange
 }: {
   id: string
   value: string
-  options: { label: string; value: string }[]
+  catalog: { label: string; value: string }[]
+  discovered: string[]
   onChange: (value: string) => void
 }): React.JSX.Element {
-  // Providers with fast-moving catalogs expose only "custom", so a free-text
-  // box backed by a datalist beats a select that goes stale.
-  const listId = `${id}-options`
+  const { t } = useTranslation('settings')
+  // The option list must not depend on the value being typed: Base UI resets a
+  // controlled value that disappears from its list, which would close the input.
+  const choices = modelChoices(catalog, discovered)
+  const listed = choices.some((choice) => choice.value === value)
+  const [customMode, setCustomMode] = useState(!listed)
+  const custom = customMode || !listed
+  const items = [
+    ...choices.map((choice) => ({ label: choice.value, value: choice.value })),
+    { label: t('models.custom'), value: CUSTOM_CHOICE }
+  ]
+  const groups = [
+    { key: 'catalog', label: t('models.group.catalog') },
+    { key: 'endpoint', label: t('models.group.endpoint') }
+  ] as const
+
   return (
-    <>
-      <Input id={id} value={value} list={listId} onChange={(event) => onChange(event.target.value)} />
-      <datalist id={listId}>
-        {options
-          .filter((option) => option.value !== 'custom')
-          .map((option) => (
-            <option key={option.value} value={option.value}>
-              {option.label}
-            </option>
-          ))}
-      </datalist>
-    </>
+    <div className="flex flex-col gap-2">
+      <Select
+        items={items}
+        value={custom ? CUSTOM_CHOICE : value}
+        onValueChange={(next, details) => {
+          // Only a user's pick counts; Base UI's own resets arrive as null / reason "none".
+          if (typeof next !== 'string' || details.reason === 'none') return
+          if (next === CUSTOM_CHOICE) {
+            setCustomMode(true)
+            return
+          }
+          setCustomMode(false)
+          onChange(next)
+        }}
+      >
+        <SelectTrigger id={id} className="w-full">
+          <SelectValue />
+        </SelectTrigger>
+        <SelectContent alignItemWithTrigger={false} className="max-h-80">
+          {groups.map((group) => {
+            const members = choices.filter((choice) => choice.source === group.key)
+            if (members.length === 0) return null
+            return (
+              <SelectGroup key={group.key}>
+                <SelectLabel>{group.label}</SelectLabel>
+                {members.map((choice) => (
+                  <SelectItem key={choice.value} value={choice.value}>
+                    <span className="font-mono">{choice.value}</span>
+                    {choice.hint && (
+                      <span className="text-muted-foreground truncate">{choice.hint}</span>
+                    )}
+                  </SelectItem>
+                ))}
+              </SelectGroup>
+            )
+          })}
+          {choices.length > 0 && <SelectSeparator />}
+          <SelectGroup>
+            <SelectItem value={CUSTOM_CHOICE}>{t('models.custom')}</SelectItem>
+          </SelectGroup>
+        </SelectContent>
+      </Select>
+      {custom && (
+        <Input
+          id={`${id}-custom`}
+          value={value}
+          placeholder={t('models.customPlaceholder')}
+          className="font-mono"
+          onChange={(event) => onChange(event.target.value.trim())}
+        />
+      )}
+    </div>
   )
 }
 

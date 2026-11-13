@@ -1,7 +1,7 @@
 /**
  * The renderer's entire privilege surface. Every handler is explicit: the
  * renderer can start/cancel runs, read and write settings, write (never read)
- * API keys, browse saved reports, and step
+ * API keys, list an endpoint's models, browse saved reports, and step
  * an already-discovered update forward (never choose where it comes from).
  */
 
@@ -18,6 +18,7 @@ import { buildRunConfig, buildSpawnEnv } from './env-builder'
 import { clearKey, decryptAll, keyStatus, setKey } from './keychain'
 import { resolveSidecar, sidecarCwd } from './python-bridge'
 import { mainT } from './i18n'
+import { ENDPOINT_KEY_ENV, ModelListError, listEndpointModels, resolveEndpoint } from './model-list'
 import { listReports, readReport, reportDirName } from './reports-reader'
 import type { RunManager } from './run-manager'
 import { loadSettings, saveSettings } from './settings-store'
@@ -56,6 +57,29 @@ async function fetchOptions(): Promise<OptionsPayload> {
   return reply as unknown as OptionsPayload
 }
 
+/**
+ * Models served by a user-supplied endpoint. The key is looked up here by the
+ * provider's own env name, so the renderer can never aim an arbitrary key at
+ * an arbitrary URL.
+ */
+async function fetchEndpointModels(provider: string, backendUrl: string | null): Promise<string[]> {
+  const t = mainT()
+  try {
+    const endpoint = resolveEndpoint(provider, backendUrl, process.env)
+    const keyEnv = ENDPOINT_KEY_ENV[provider]
+    const apiKey = keyEnv ? (decryptAll()[keyEnv] ?? process.env[keyEnv]) : undefined
+    return await listEndpointModels(endpoint, apiKey)
+  } catch (error) {
+    if (!(error instanceof ModelListError)) {
+      throw new Error(t('modelsRequestFailed', { message: (error as Error).message }))
+    }
+    if (error.reason === 'http') throw new Error(t('modelsHttpError', { status: error.status ?? 0 }))
+    if (error.reason === 'noEndpoint') throw new Error(t('modelsNoEndpoint'))
+    if (error.reason === 'unsupported') throw new Error(t('modelsUnsupported'))
+    throw new Error(t('modelsBadResponse'))
+  }
+}
+
 export function registerIpcHandlers(
   runManager: RunManager,
   updater: Updater | null,
@@ -68,6 +92,9 @@ export function registerIpcHandlers(
     return saved
   })
   ipcMain.handle('settings:options', () => fetchOptions())
+  ipcMain.handle('models:list', (_event, provider: string, backendUrl: string | null) =>
+    fetchEndpointModels(provider, backendUrl)
+  )
 
   ipcMain.handle('keys:status', (_event, names: string[]) => keyStatus(names))
   ipcMain.handle('keys:set', (_event, name: string, value: string) => {

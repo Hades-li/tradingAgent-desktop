@@ -17,5 +17,5 @@ export const analysis = {
   checkpoint: 'Enable checkpoint resume',
   checkpointHint: 'Resume from the last successful node after a crash',
   start: 'Start analysis',
-  summary: 'Provider {{provider}} · {{count}} agents'
+  summary: 'Provider {{provider}} · deep {{deep}} / quick {{quick}} · {{count}} agents'
 }

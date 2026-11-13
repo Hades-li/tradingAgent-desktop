@@ -17,5 +17,5 @@ export const analysis = {
   checkpoint: '启用断点续跑',
   checkpointHint: '崩溃后可从最后一个成功节点恢复',
   start: '开始分析',
-  summary: '使用提供方 {{provider}} · {{count}} 个 agent'
+  summary: '使用提供方 {{provider}} · 深度 {{deep}} / 快速 {{quick}} · {{count}} 个 agent'
 } as const

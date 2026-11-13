@@ -22,5 +22,10 @@ export const main = {
   updateAvailable: '发现新版本 v{{version}}',
   updateAvailableDetail: '当前版本 v{{current}}。下载完成后会自动安装并重新打开应用。',
   updateDownloadNow: '立即下载',
-  updateInProgress: '正在更新到 v{{version}}，请留意侧边栏的进度'
+  updateInProgress: '正在更新到 v{{version}}，请留意侧边栏的进度',
+  modelsUnsupported: '该提供方不支持从端点获取模型列表',
+  modelsNoEndpoint: '请先在“提供方与密钥”中填写自定义端点',
+  modelsHttpError: '端点返回 HTTP {{status}}，请检查端点地址与 API 密钥',
+  modelsBadResponse: '端点返回的模型列表格式无法识别',
+  modelsRequestFailed: '无法连接端点：{{message}}'
 } as const

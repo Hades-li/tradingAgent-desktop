@@ -17,6 +17,10 @@ const api = {
       ipcRenderer.invoke('settings:save', settings),
     options: (): Promise<OptionsPayload> => ipcRenderer.invoke('settings:options')
   },
+  models: {
+    list: (provider: string, backendUrl: string | null): Promise<string[]> =>
+      ipcRenderer.invoke('models:list', provider, backendUrl)
+  },
   keys: {
     status: (names: string[]): Promise<Record<string, KeyState>> =>
       ipcRenderer.invoke('keys:status', names),

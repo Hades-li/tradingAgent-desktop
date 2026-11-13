@@ -32,7 +32,18 @@ export const settings = {
     title: 'Model roles',
     description: 'The deep model makes the rulings; the quick model handles tool calls and summaries.',
     deep: 'Deep-thinking model',
-    quick: 'Quick-thinking model'
+    quick: 'Quick-thinking model',
+    custom: 'Custom model ID…',
+    customPlaceholder: 'Enter a model ID, e.g. gpt-5.6',
+    group: {
+      catalog: 'Recommended',
+      endpoint: 'From the endpoint'
+    },
+    discover: 'Fetch models from endpoint',
+    discovering: 'Fetching the model list…',
+    discovered_one: 'The endpoint offers {{count}} model; pick it below',
+    discovered_other: 'The endpoint offers {{count}} models; pick one below',
+    discoverHint: 'Reads available models from the custom endpoint’s /models route'
   },
   reasoning: {
     title: 'Reasoning & sampling',

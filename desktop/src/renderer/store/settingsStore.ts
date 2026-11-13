@@ -13,11 +13,21 @@ interface SettingsState {
   keyStatus: Record<string, 'stored' | 'env' | 'missing'>
   loaded: boolean
   optionsError: string | null
+  /** Models listed by a custom endpoint, tagged with the provider/URL they came from. */
+  endpointModels: { source: string; models: string[] } | null
+  endpointModelsLoading: boolean
+  endpointModelsError: string | null
   load: () => Promise<void>
   update: (patch: Partial<Settings>) => void
   save: () => Promise<void>
   setKey: (name: string, value: string) => Promise<void>
   clearKey: (name: string) => Promise<void>
+  fetchEndpointModels: () => Promise<void>
+}
+
+/** Identifies which endpoint a fetched model list belongs to. */
+export function endpointSource(settings: Pick<Settings, 'llmProvider' | 'backendUrl'>): string {
+  return `${settings.llmProvider}|${settings.backendUrl ?? ''}`
 }
 
 export const useSettingsStore = create<SettingsState>((set, get) => ({
@@ -26,6 +36,9 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
   keyStatus: {},
   loaded: false,
   optionsError: null,
+  endpointModels: null,
+  endpointModelsLoading: false,
+  endpointModelsError: null,
 
   load: async () => {
     const settings = await window.desktop.settings.get()
@@ -58,5 +71,26 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
   clearKey: async (name) => {
     const status = await window.desktop.keys.clear(name)
     set((state) => ({ keyStatus: { ...state.keyStatus, ...status } }))
+  },
+
+  fetchEndpointModels: async () => {
+    const { llmProvider, backendUrl } = get().settings
+    const source = endpointSource({ llmProvider, backendUrl })
+    set({ endpointModelsLoading: true, endpointModelsError: null })
+    try {
+      const models = await window.desktop.models.list(llmProvider, backendUrl)
+      if (endpointSource(get().settings) !== source) return
+      set({ endpointModels: { source, models } })
+    } catch (error) {
+      if (endpointSource(get().settings) !== source) return
+      // ipcRenderer.invoke prefixes the main-process message; show only the message.
+      const message = error instanceof Error ? error.message : String(error)
+      set({
+        endpointModels: null,
+        endpointModelsError: message.replace(/^Error invoking remote method '[^']+': (Error: )?/, '')
+      })
+    } finally {
+      set({ endpointModelsLoading: false })
+    }
   }
 }))

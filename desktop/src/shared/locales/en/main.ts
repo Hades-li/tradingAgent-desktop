@@ -22,5 +22,10 @@ export const main = {
   updateAvailable: 'Version v{{version}} is available',
   updateAvailableDetail: 'You have v{{current}}. Once downloaded, the update installs and the app reopens.',
   updateDownloadNow: 'Download',
-  updateInProgress: 'Updating to v{{version}}; see the sidebar for progress'
+  updateInProgress: 'Updating to v{{version}}; see the sidebar for progress',
+  modelsUnsupported: 'This provider cannot list models from its endpoint',
+  modelsNoEndpoint: 'Enter a custom endpoint under Provider & keys first',
+  modelsHttpError: 'The endpoint responded with HTTP {{status}}; check its URL and API key',
+  modelsBadResponse: 'The endpoint returned a model list in an unrecognized format',
+  modelsRequestFailed: 'Could not reach the endpoint: {{message}}'
 }

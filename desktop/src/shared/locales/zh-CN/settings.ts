@@ -32,7 +32,17 @@ export const settings = {
     title: '模型分工',
     description: '深度模型负责裁定，快速模型负责工具调用与摘要。',
     deep: '深度思考模型',
-    quick: '快速思考模型'
+    quick: '快速思考模型',
+    custom: '自定义模型 ID…',
+    customPlaceholder: '输入模型 ID，例如 gpt-5.6',
+    group: {
+      catalog: '推荐模型',
+      endpoint: '端点提供的模型'
+    },
+    discover: '从端点获取模型',
+    discovering: '正在获取模型列表…',
+    discovered: '端点提供 {{count}} 个模型，可在下方选择',
+    discoverHint: '从自定义端点的 /models 接口读取可用模型'
   },
   reasoning: {
     title: '推理与采样',

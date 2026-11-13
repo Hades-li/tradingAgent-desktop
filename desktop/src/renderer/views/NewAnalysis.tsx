@@ -200,7 +200,12 @@ export function NewAnalysis({ onStart, busy, initialTicker = '' }: Props): React
             {t('start')}
           </Button>
           <FieldDescription>
-            {t('summary', { provider: settings.llmProvider, count: analysts.length + 8 })}
+            {t('summary', {
+              provider: settings.llmProvider,
+              deep: settings.deepThinkLlm,
+              quick: settings.quickThinkLlm,
+              count: analysts.length + 8
+            })}
           </FieldDescription>
         </Field>
       </FieldGroup>
