@@ -2,24 +2,27 @@ export const settings = {
   title: 'Model configuration',
   tabs: {
     provider: 'Provider & keys',
-    model: 'Models & reasoning',
+    model: 'Reasoning & sampling',
     data: 'Data sources',
     run: 'Run defaults'
   },
   catalogError: 'Could not read the model catalog',
   followDefault: 'Provider default',
   provider: {
-    title: 'Active provider',
-    description: 'Chooses whose models are used and whether a custom endpoint is needed.',
+    title: 'LLM',
+    description: 'Pick a provider, then fill in its API key and model roles below.',
     label: 'LLM provider',
-    endpoint: 'Custom endpoint'
+    endpoint: 'Custom endpoint',
+    names: {
+      openai_compatible: 'Custom model'
+    }
   },
   keys: {
     title: 'API keys',
     description:
       'Keys are encrypted by the system keychain and only injected into the environment of the analysis process at launch. They are never written to .env or sent back to the UI.',
-    current: 'Active',
     placeholder: 'Paste a new key',
+    replaceHint: 'paste a new key to replace it',
     save: 'Save',
     clear: 'Clear',
     state: {

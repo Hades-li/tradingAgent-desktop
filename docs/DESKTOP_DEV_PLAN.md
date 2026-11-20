@@ -550,9 +550,10 @@ ruff 配置：line-length 100、target py310、select `E,W,F,I,B,UP,C4,SIM`、
 
 **设置界面**（侧栏底部齿轮进入）四组：
 
-1. **提供方与密钥** —— 提供方切换联动密钥表高亮与端点字段；仅 `ollama` /
+1. **提供方与密钥** —— 大模型配置集中在一页：选中提供方后，下方只显示该提供方的
+   密钥输入框（已保存的以 `••••` 占位提示）与模型分工；仅 `ollama` /
    `openai_compatible` 显示"自定义端点"（符合 `backend_url` 实际语义）
-2. **模型与推理** —— 推理参数随提供方变化：openai→reasoning effort、
+2. **推理与采样** —— 推理参数随提供方变化：openai→reasoning effort、
    anthropic→effort、google→thinking level，其余明确提示"无专属参数"
 3. **数据源** —— 六个类别对应 `data_vendors`，保留逗号分隔的顺序回退写法
 4. **运行默认值** —— 辩论轮次、输出语言、对标基准、断点续跑

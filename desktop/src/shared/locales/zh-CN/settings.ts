@@ -2,24 +2,27 @@ export const settings = {
   title: '模型配置',
   tabs: {
     provider: '提供方与密钥',
-    model: '模型与推理',
+    model: '推理与采样',
     data: '数据源',
     run: '运行默认值'
   },
   catalogError: '无法读取模型目录',
   followDefault: '跟随默认',
   provider: {
-    title: '活动提供方',
-    description: '决定使用哪家的模型，以及是否需要自定义端点。',
+    title: '大模型',
+    description: '选择提供方后，在下方填写它的密钥与模型分工。',
     label: 'LLM 提供方',
-    endpoint: '自定义端点'
+    endpoint: '自定义端点',
+    names: {
+      openai_compatible: '自定义模型'
+    }
   },
   keys: {
     title: 'API 密钥',
     description:
       '密钥经系统钥匙串加密存储，仅在启动分析子进程时注入其环境变量；既不写入 .env，也不会回传到界面层。',
-    current: '当前',
     placeholder: '粘贴新密钥',
+    replaceHint: '粘贴新密钥可替换',
     save: '保存',
     clear: '清除',
     state: {

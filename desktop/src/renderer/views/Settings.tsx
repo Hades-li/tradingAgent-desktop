@@ -1,5 +1,5 @@
 /**
- * Four groups, matching the prototype: provider + keys, models + reasoning,
+ * Four groups: LLM (provider, its key and model roles on one page), reasoning,
  * data vendors, run defaults. Every field is annotated with the environment
  * variable it maps to so a user can cross-check against `.env` or the CLI.
  */
@@ -8,7 +8,6 @@ import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { RefreshCw } from 'lucide-react'
 import { Alert, AlertDescription, AlertTitle } from '@renderer/components/ui/alert'
-import { Badge } from '@renderer/components/ui/badge'
 import { Button } from '@renderer/components/ui/button'
 import {
   Card,
@@ -23,6 +22,9 @@ import {
   FieldDescription,
   FieldGroup,
   FieldLabel,
+  FieldLegend,
+  FieldSeparator,
+  FieldSet,
   FieldTitle
 } from '@renderer/components/ui/field'
 import {
@@ -63,12 +65,13 @@ export function SettingsView(): React.JSX.Element {
   const [saved, setSaved] = useState(false)
 
   const showEndpoint = CUSTOM_ENDPOINT_PROVIDERS.includes(settings.llmProvider)
+  const activeProvider = options?.providers.find((item) => item.id === settings.llmProvider)
   const interfaceLanguages = [
     { label: tCommon('language.system'), value: 'system' },
     ...LOCALES.map((locale) => ({ label: locale.nativeName, value: locale.code }))
   ]
   const providerItems = (options?.providers ?? [{ id: settings.llmProvider }]).map((item) => ({
-    label: item.id,
+    label: t(`provider.names.${item.id}`, { defaultValue: item.id }),
     value: item.id
   }))
 
@@ -105,77 +108,65 @@ export function SettingsView(): React.JSX.Element {
               <CardDescription>{t('provider.description')}</CardDescription>
             </CardHeader>
             <CardContent>
-              <FieldGroup className="grid grid-cols-2 gap-4">
-                <Field>
-                  <FieldLabel htmlFor="provider">{t('provider.label')}</FieldLabel>
-                  <Select
-                    items={providerItems}
-                    value={settings.llmProvider}
-                    onValueChange={(value) => {
-                      const next = value as string
-                      const nextProvider = options?.providers.find((item) => item.id === next)
-                      update({ llmProvider: next, ...modelsForProvider(nextProvider, settings) })
-                    }}
-                  >
-                    <SelectTrigger id="provider">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectGroup>
-                        {providerItems.map((item) => (
-                          <SelectItem key={item.value} value={item.value}>
-                            {item.label}
-                          </SelectItem>
-                        ))}
-                      </SelectGroup>
-                    </SelectContent>
-                  </Select>
-                  <FieldDescription>TRADINGAGENTS_LLM_PROVIDER</FieldDescription>
-                </Field>
-                {showEndpoint && (
-                  <Field>
-                    <FieldLabel htmlFor="endpoint">{t('provider.endpoint')}</FieldLabel>
-                    <Input
-                      id="endpoint"
-                      value={settings.backendUrl ?? ''}
-                      placeholder="http://localhost:11434/v1"
-                      onChange={(event) => update({ backendUrl: event.target.value || null })}
-                    />
-                    <FieldDescription>TRADINGAGENTS_LLM_BACKEND_URL</FieldDescription>
-                  </Field>
-                )}
-              </FieldGroup>
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader>
-              <CardTitle>{t('keys.title')}</CardTitle>
-              <CardDescription>{t('keys.description')}</CardDescription>
-            </CardHeader>
-            <CardContent>
               <FieldGroup>
-                {(options?.providers ?? [])
-                  .filter((item) => item.apiKeyEnv)
-                  .map((item) => (
-                    <KeyRow
-                      key={item.id}
-                      provider={item.id}
-                      envName={item.apiKeyEnv as string}
-                      state={keyStatus[item.apiKeyEnv as string] ?? 'missing'}
-                      active={item.id === settings.llmProvider}
-                      onSave={setKey}
-                      onClear={clearKey}
-                    />
-                  ))}
+                <FieldGroup className="grid grid-cols-2 gap-4">
+                  <Field>
+                    <FieldLabel htmlFor="provider">{t('provider.label')}</FieldLabel>
+                    <Select
+                      items={providerItems}
+                      value={settings.llmProvider}
+                      onValueChange={(value) => {
+                        const next = value as string
+                        const nextProvider = options?.providers.find((item) => item.id === next)
+                        update({ llmProvider: next, ...modelsForProvider(nextProvider, settings) })
+                      }}
+                    >
+                      <SelectTrigger id="provider">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectGroup>
+                          {providerItems.map((item) => (
+                            <SelectItem key={item.value} value={item.value}>
+                              {item.label}
+                            </SelectItem>
+                          ))}
+                        </SelectGroup>
+                      </SelectContent>
+                    </Select>
+                    <FieldDescription>TRADINGAGENTS_LLM_PROVIDER</FieldDescription>
+                  </Field>
+                  {showEndpoint && (
+                    <Field>
+                      <FieldLabel htmlFor="endpoint">{t('provider.endpoint')}</FieldLabel>
+                      <Input
+                        id="endpoint"
+                        value={settings.backendUrl ?? ''}
+                        placeholder="http://localhost:11434/v1"
+                        onChange={(event) => update({ backendUrl: event.target.value || null })}
+                      />
+                      <FieldDescription>TRADINGAGENTS_LLM_BACKEND_URL</FieldDescription>
+                    </Field>
+                )}
+                </FieldGroup>
+                {activeProvider?.apiKeyEnv && (
+                  <KeyField
+                    key={activeProvider.id}
+                    provider={activeProvider.id}
+                    envName={activeProvider.apiKeyEnv}
+                    state={keyStatus[activeProvider.apiKeyEnv] ?? 'missing'}
+                    onSave={setKey}
+                    onClear={clearKey}
+                  />
+                )}
+                <FieldSeparator />
+                <ModelRoles />
               </FieldGroup>
             </CardContent>
           </Card>
         </TabsContent>
 
         <TabsContent value="model" className="flex flex-col gap-4">
-          <ModelRoles />
-
           <Card>
             <CardHeader>
               <CardTitle>{t('reasoning.title')}</CardTitle>
@@ -510,74 +501,71 @@ function ModelRoles(): React.JSX.Element {
   const source = endpointSource(settings)
   const discovered = endpointModels?.source === source ? endpointModels.models : []
 
-  // Ask the endpoint once per provider/URL as soon as this tab is shown.
+  // Ask the endpoint once per provider/URL; wait for the endpoint field to settle first.
   useEffect(() => {
     if (!canDiscover || endpointModels?.source === source) return
-    void fetchEndpointModels()
+    const timer = setTimeout(() => void fetchEndpointModels(), 600)
+    return () => clearTimeout(timer)
   }, [canDiscover, source])
 
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle>{t('models.title')}</CardTitle>
-        <CardDescription>{t('models.description')}</CardDescription>
-      </CardHeader>
-      <CardContent>
-        <FieldGroup>
-          {canDiscover && (
-            <div className="flex items-center gap-3">
-              <Button
-                variant="outline"
-                size="sm"
-                disabled={endpointModelsLoading}
-                onClick={() => void fetchEndpointModels()}
-              >
-                <RefreshCw className={endpointModelsLoading ? 'animate-spin' : undefined} />
-                {t('models.discover')}
-              </Button>
-              <span
-                className={
-                  endpointModelsError ? 'text-destructive text-sm' : 'text-muted-foreground text-sm'
-                }
-              >
-                {endpointModelsLoading
-                  ? t('models.discovering')
-                  : endpointModelsError ??
-                    (endpointModels?.source === source
-                      ? t('models.discovered', { count: discovered.length })
-                      : t('models.discoverHint'))}
-              </span>
-            </div>
-          )}
-          <FieldGroup className="grid grid-cols-2 gap-4">
-            <Field>
-              <FieldLabel htmlFor="deep-model">{t('models.deep')}</FieldLabel>
-              <ModelSelect
-                key={settings.llmProvider}
-                id="deep-model"
-                value={settings.deepThinkLlm}
-                catalog={provider?.deepModels ?? []}
-                discovered={discovered}
-                onChange={(value) => update({ deepThinkLlm: value })}
-              />
-              <FieldDescription>TRADINGAGENTS_DEEP_THINK_LLM</FieldDescription>
-            </Field>
-            <Field>
-              <FieldLabel htmlFor="quick-model">{t('models.quick')}</FieldLabel>
-              <ModelSelect
-                key={settings.llmProvider}
-                id="quick-model"
-                value={settings.quickThinkLlm}
-                catalog={provider?.quickModels ?? []}
-                discovered={discovered}
-                onChange={(value) => update({ quickThinkLlm: value })}
-              />
-              <FieldDescription>TRADINGAGENTS_QUICK_THINK_LLM</FieldDescription>
-            </Field>
-          </FieldGroup>
+    <FieldSet>
+      <FieldLegend>{t('models.title')}</FieldLegend>
+      <FieldDescription>{t('models.description')}</FieldDescription>
+      <FieldGroup>
+        {canDiscover && (
+          <div className="flex items-center gap-3">
+            <Button
+              variant="outline"
+              size="sm"
+              disabled={endpointModelsLoading}
+              onClick={() => void fetchEndpointModels()}
+            >
+              <RefreshCw className={endpointModelsLoading ? 'animate-spin' : undefined} />
+              {t('models.discover')}
+            </Button>
+            <span
+              className={
+                endpointModelsError ? 'text-destructive text-sm' : 'text-muted-foreground text-sm'
+              }
+            >
+              {endpointModelsLoading
+                ? t('models.discovering')
+                : endpointModelsError ??
+                  (endpointModels?.source === source
+                    ? t('models.discovered', { count: discovered.length })
+                    : t('models.discoverHint'))}
+            </span>
+          </div>
+        )}
+        <FieldGroup className="grid grid-cols-2 gap-4">
+          <Field>
+            <FieldLabel htmlFor="deep-model">{t('models.deep')}</FieldLabel>
+            <ModelSelect
+              key={settings.llmProvider}
+              id="deep-model"
+              value={settings.deepThinkLlm}
+              catalog={provider?.deepModels ?? []}
+              discovered={discovered}
+              onChange={(value) => update({ deepThinkLlm: value })}
+            />
+            <FieldDescription>TRADINGAGENTS_DEEP_THINK_LLM</FieldDescription>
+          </Field>
+          <Field>
+            <FieldLabel htmlFor="quick-model">{t('models.quick')}</FieldLabel>
+            <ModelSelect
+              key={settings.llmProvider}
+              id="quick-model"
+              value={settings.quickThinkLlm}
+              catalog={provider?.quickModels ?? []}
+              discovered={discovered}
+              onChange={(value) => update({ quickThinkLlm: value })}
+            />
+            <FieldDescription>TRADINGAGENTS_QUICK_THINK_LLM</FieldDescription>
+          </Field>
         </FieldGroup>
-      </CardContent>
-    </Card>
+      </FieldGroup>
+    </FieldSet>
   )
 }
 
@@ -698,40 +686,35 @@ function NumberInput({
   )
 }
 
-function KeyRow({
+const MASKED_KEY = '••••••••••••••••'
+
+function KeyField({
   provider,
   envName,
   state,
-  active,
   onSave,
   onClear
 }: {
   provider: string
   envName: string
   state: 'stored' | 'env' | 'missing'
-  active: boolean
   onSave: (name: string, value: string) => Promise<void>
   onClear: (name: string) => Promise<void>
 }): React.JSX.Element {
   const [draft, setDraft] = useState('')
   const { t } = useTranslation('settings')
+  const hasKey = state !== 'missing'
 
   return (
-    <Field orientation="responsive" data-active={active || undefined}>
-      <FieldContent>
-        <FieldTitle>
-          {provider}
-          {active && <Badge variant="outline">{t('keys.current')}</Badge>}
-        </FieldTitle>
-        <FieldDescription>
-          {envName} · {t(`keys.state.${state}`)}
-        </FieldDescription>
-      </FieldContent>
-      <InputGroup className="max-w-xs">
+    <Field>
+      <FieldLabel htmlFor="api-key">{t('keys.title')}</FieldLabel>
+      <InputGroup>
         <InputGroupInput
+          id="api-key"
           type="password"
+          autoComplete="off"
           value={draft}
-          placeholder={t('keys.placeholder')}
+          placeholder={hasKey ? MASKED_KEY : t('keys.placeholder')}
           aria-label={`${provider} API key`}
           onChange={(event) => setDraft(event.target.value)}
         />
@@ -754,6 +737,11 @@ function KeyRow({
           </InputGroupButton>
         </InputGroupAddon>
       </InputGroup>
+      <FieldDescription>
+        {envName} · {t(`keys.state.${state}`)}
+        {hasKey && ` · ${t('keys.replaceHint')}`}
+      </FieldDescription>
+      <FieldDescription>{t('keys.description')}</FieldDescription>
     </Field>
   )
 }
